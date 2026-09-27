@@ -16,47 +16,54 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.support.TransactionTemplate;
 
-import dev.barboza.cofre.dominio.ContaRepository;
-import dev.barboza.cofre.dominio.LancamentoRepository;
 import dev.barboza.cofre.dominio.SaldoInsuficienteException;
+import dev.barboza.cofre.seguranca.Perfil;
+import dev.barboza.cofre.seguranca.UsuarioLogado;
 import dev.barboza.cofre.servico.ContaService;
 
-/** Saques simultâneos na mesma conta nunca deixam o saldo negativo nem perdem lançamentos. */
+/** Saques simultâneos na mesma conta nunca deixam o saldo passar do limite nem perdem lançamentos. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("test")
-@Import(RelogioFixo.class)
+@Import({RelogioFixo.class, Cenario.class})
 class ConcorrenciaTest {
 
     @Autowired
-    ContaService servico;
+    ContaService contas;
 
     @Autowired
-    ContaRepository contas;
+    Cenario cenario;
 
     @Autowired
-    LancamentoRepository lancamentos;
+    TransactionTemplate transacao;
+
+    @Autowired
+    JdbcTemplate jdbc;
 
     @AfterEach
     void limpar() {
-        lancamentos.deleteAll();
-        contas.deleteAll();
+        for (String tabela : List.of("evento_auditoria", "lancamento", "chave_pix", "caixinha", "cartao", "conta", "usuario", "cliente")) {
+            jdbc.update("delete from " + tabela);
+        }
     }
 
     @Test
-    void saquesSimultaneosRespeitamOSaldo() throws Exception {
-        String numero = servico.abrir("Ana Souza", null, new BigDecimal("500")).getNumero();
-        int tentativas = 20;
+    void saquesSimultaneosRespeitamSaldoELimite() throws Exception {
+        Cenario.Pessoa ana = transacao.execute(s -> cenario.cliente("Ana Souza", "500", "300"));
+        UsuarioLogado caixa = transacao.execute(s -> cenario.funcionario(Perfil.CAIXA));
+        String numero = ana.conta().getNumero();
         CountDownLatch largada = new CountDownLatch(1);
         List<Future<Boolean>> resultados = new ArrayList<>();
 
         try (ExecutorService pool = Executors.newFixedThreadPool(8)) {
-            for (int i = 0; i < tentativas; i++) {
+            for (int i = 0; i < 20; i++) {
                 resultados.add(pool.submit(() -> {
                     largada.await();
                     try {
-                        servico.sacar(numero, new BigDecimal("100"));
+                        contas.sacarEmEspecie(caixa, numero, new BigDecimal("100"));
                         return true;
                     } catch (OptimisticLockingFailureException | SaldoInsuficienteException e) {
                         return false;
@@ -72,11 +79,11 @@ class ConcorrenciaTest {
                 sucessos++;
             }
         }
-        BigDecimal saldo = servico.buscar(numero).getSaldo();
-        int lancamentosDoExtrato = servico.extrato(numero, null, null).lancamentos().size();
+        BigDecimal saldo = contas.buscar(caixa, numero).getSaldo();
+        int lancamentos = contas.extrato(caixa, numero, null, null).lancamentos().size();
 
-        assertThat(saldo.signum()).isGreaterThanOrEqualTo(0);
+        assertThat(saldo).isGreaterThanOrEqualTo(new BigDecimal("-300.00"));
         assertThat(saldo).isEqualByComparingTo(new BigDecimal(500 - 100 * sucessos));
-        assertThat(lancamentosDoExtrato).isEqualTo(1 + (int) sucessos);
+        assertThat(lancamentos).isEqualTo(1 + (int) sucessos);
     }
 }

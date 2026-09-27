@@ -3,10 +3,15 @@ package dev.barboza.cofre.dominio;
 public enum TipoLancamento {
 
     ABERTURA("Abertura de conta", true),
-    DEPOSITO("Depósito", true),
-    SAQUE("Saque", false),
+    DEPOSITO("Depósito em espécie", true),
+    SAQUE("Saque em espécie", false),
     TRANSFERENCIA_ENVIADA("Transferência enviada", false),
-    TRANSFERENCIA_RECEBIDA("Transferência recebida", true);
+    TRANSFERENCIA_RECEBIDA("Transferência recebida", true),
+    PIX_ENVIADO("Pix enviado", false),
+    PIX_RECEBIDO("Pix recebido", true),
+    CAIXINHA_GUARDADO("Guardado na caixinha", false),
+    CAIXINHA_RESGATADO("Resgate da caixinha", true),
+    JUROS_CHEQUE_ESPECIAL("Juros do cheque especial", false);
 
     private final String descricao;
     private final boolean credito;

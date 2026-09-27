@@ -11,14 +11,13 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 /** Linha do extrato. Imutável: só é criada pela {@link Conta}. */
 @Entity
-@Table(name = "lancamento", indexes = @Index(name = "ix_lancamento_conta_data", columnList = "conta_id, data_hora"))
+@Table(name = "lancamento")
 public class Lancamento {
 
     @Id
@@ -40,9 +39,23 @@ public class Lancamento {
     @Column(name = "saldo_apos", nullable = false, precision = 15, scale = 2)
     private BigDecimal saldoApos;
 
-    /** Número da outra conta, nas transferências. */
+    /** Número da outra conta, nas transferências e no Pix. */
     @Column(length = 12)
     private String contraparte;
+
+    @Column(name = "contraparte_nome", length = 80)
+    private String contraparteNome;
+
+    @Column(length = 140)
+    private String mensagem;
+
+    /** Identificador da transação: os dois lados de uma transferência compartilham o mesmo. */
+    @Column(name = "id_transacao", nullable = false, length = 40)
+    private String idTransacao;
+
+    /** Chave enviada pelo cliente no cabeçalho Idempotency-Key, para não duplicar um Pix. */
+    @Column(name = "chave_idempotencia", length = 64)
+    private String chaveIdempotencia;
 
     @Column(name = "data_hora", nullable = false)
     private Instant dataHora;
@@ -50,13 +63,21 @@ public class Lancamento {
     protected Lancamento() {
     }
 
-    Lancamento(Conta conta, TipoLancamento tipo, BigDecimal valor, BigDecimal saldoApos, String contraparte, Instant dataHora) {
+    Lancamento(Conta conta, TipoLancamento tipo, BigDecimal valor, BigDecimal saldoApos, String contraparte,
+            String contraparteNome, String mensagem, String idTransacao, Instant dataHora) {
         this.conta = conta;
         this.tipo = tipo;
         this.valor = valor;
         this.saldoApos = saldoApos;
         this.contraparte = contraparte;
+        this.contraparteNome = contraparteNome;
+        this.mensagem = mensagem;
+        this.idTransacao = idTransacao;
         this.dataHora = dataHora;
+    }
+
+    public void marcarIdempotencia(String chave) {
+        this.chaveIdempotencia = chave;
     }
 
     /** Valor com sinal: positivo para entradas, negativo para saídas. */
@@ -66,8 +87,12 @@ public class Lancamento {
 
     public String descricao() {
         return switch (tipo) {
-            case TRANSFERENCIA_ENVIADA -> "Transferência para " + contraparte;
-            case TRANSFERENCIA_RECEBIDA -> "Transferência de " + contraparte;
+            case TRANSFERENCIA_ENVIADA -> "Transferência para " + contraparteNome;
+            case TRANSFERENCIA_RECEBIDA -> "Transferência de " + contraparteNome;
+            case PIX_ENVIADO -> "Pix para " + contraparteNome;
+            case PIX_RECEBIDO -> "Pix de " + contraparteNome;
+            case CAIXINHA_GUARDADO -> "Guardado em " + mensagem;
+            case CAIXINHA_RESGATADO -> "Resgate de " + mensagem;
             default -> tipo.descricao();
         };
     }
@@ -94,6 +119,22 @@ public class Lancamento {
 
     public String getContraparte() {
         return contraparte;
+    }
+
+    public String getContraparteNome() {
+        return contraparteNome;
+    }
+
+    public String getMensagem() {
+        return mensagem;
+    }
+
+    public String getIdTransacao() {
+        return idTransacao;
+    }
+
+    public String getChaveIdempotencia() {
+        return chaveIdempotencia;
     }
 
     public Instant getDataHora() {

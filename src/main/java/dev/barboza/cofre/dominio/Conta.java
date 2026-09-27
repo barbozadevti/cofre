@@ -8,21 +8,25 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
 /**
- * Conta corrente. Toda mudança de saldo passa por aqui e devolve o {@link Lancamento}
- * correspondente, então saldo e extrato nunca divergem.
+ * Conta corrente com cheque especial. Toda mudança de saldo passa por aqui e devolve o
+ * {@link Lancamento} correspondente, então saldo e extrato nunca divergem.
  */
 @Entity
 @Table(name = "conta")
 public class Conta {
 
     public static final String AGENCIA_PADRAO = "0001";
+    public static final BigDecimal LIMITE_MAXIMO = new BigDecimal("50000.00");
 
     private static final Pattern AGENCIA = Pattern.compile("\\d{4}");
 
@@ -39,15 +43,23 @@ public class Conta {
     @Column(nullable = false, length = 4)
     private String agencia;
 
-    @Column(nullable = false, length = 80)
-    private String titular;
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
+    @JoinColumn(name = "cliente_id")
+    private Cliente cliente;
 
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal saldo;
 
+    /** Limite do cheque especial: o saldo pode ficar negativo até {@code -limite}. */
+    @Column(nullable = false, precision = 15, scale = 2)
+    private BigDecimal limite;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
     private SituacaoConta situacao;
+
+    @Column(name = "motivo_bloqueio", length = 200)
+    private String motivoBloqueio;
 
     @Column(name = "aberta_em", nullable = false)
     private Instant abertaEm;
@@ -62,83 +74,173 @@ public class Conta {
     protected Conta() {
     }
 
-    private Conta(int numeroBase, String agencia, String titular, Instant abertaEm) {
+    private Conta(int numeroBase, String agencia, Cliente cliente, Instant abertaEm) {
         this.numeroBase = numeroBase;
         this.numero = NumeroConta.formatar(numeroBase);
         this.agencia = agencia;
-        this.titular = titular;
-        this.saldo = BigDecimal.ZERO.setScale(2);
+        this.cliente = cliente;
+        this.saldo = zero();
+        this.limite = zero();
         this.situacao = SituacaoConta.ATIVA;
         this.abertaEm = abertaEm;
     }
 
-    /** Cria a conta e devolve junto o lançamento de abertura com o saldo inicial (que pode ser zero). */
-    public static Abertura abrir(int numeroBase, String agencia, String titular, BigDecimal saldoInicial, Instant quando) {
-        Conta conta = new Conta(numeroBase, validarAgencia(agencia), validarTitular(titular), quando);
-        BigDecimal valor = Dinheiro.validarValorOuZero(saldoInicial);
-        Lancamento abertura = conta.creditar(TipoLancamento.ABERTURA, valor, null, quando);
+    /** Cria a conta e devolve junto o lançamento de abertura com o depósito inicial (que pode ser zero). */
+    public static Abertura abrir(int numeroBase, String agencia, Cliente cliente, BigDecimal depositoInicial, Instant quando) {
+        Conta conta = new Conta(numeroBase, validarAgencia(agencia), cliente, quando);
+        BigDecimal valor = Dinheiro.validarValorOuZero(depositoInicial);
+        conta.exigirNaoEncerrada();
+        conta.saldo = conta.saldo.add(valor);
+        Lancamento abertura = new Lancamento(conta, TipoLancamento.ABERTURA, valor, conta.saldo, null, null, null,
+                IdTransacao.gerar('T', quando), quando);
         return new Abertura(conta, abertura);
     }
 
     public record Abertura(Conta conta, Lancamento lancamento) {
     }
 
-    public Lancamento depositar(BigDecimal valor, Instant quando) {
-        return creditar(TipoLancamento.DEPOSITO, Dinheiro.validarValor(valor), null, quando);
+    /** Outra ponta da operação (conta e nome), para o extrato e o comprovante. */
+    public record Contraparte(String numero, String nome) {
+
+        public static Contraparte de(Conta conta) {
+            return new Contraparte(conta.getNumero(), conta.getCliente().getNome());
+        }
     }
 
-    public Lancamento sacar(BigDecimal valor, Instant quando) {
-        return debitar(TipoLancamento.SAQUE, Dinheiro.validarValor(valor), null, quando);
-    }
-
-    /** Debita desta conta e credita no destino; devolve os dois lançamentos (enviado, recebido). */
-    public Lancamento[] transferir(Conta destino, BigDecimal valor, Instant quando) {
-        if (destino.numero.equals(numero)) {
-            throw new OperacaoInvalidaException("A conta de destino deve ser diferente da conta de origem.");
+    /** Entrada de dinheiro. Conta bloqueada recebe normalmente; encerrada não. */
+    public Lancamento creditar(TipoLancamento tipo, BigDecimal valor, Contraparte contraparte, String mensagem,
+            String idTransacao, Instant quando) {
+        if (!tipo.credito()) {
+            throw new IllegalArgumentException(tipo + " não é crédito");
         }
         BigDecimal valido = Dinheiro.validarValor(valor);
-        destino.exigirAtiva();
-        Lancamento enviado = debitar(TipoLancamento.TRANSFERENCIA_ENVIADA, valido, destino.numero, quando);
-        Lancamento recebido = destino.creditar(TipoLancamento.TRANSFERENCIA_RECEBIDA, valido, numero, quando);
-        return new Lancamento[] {enviado, recebido};
+        exigirNaoEncerrada();
+        saldo = saldo.add(valido);
+        return lancamento(tipo, valido, contraparte, mensagem, idTransacao, quando);
     }
 
-    /** Só encerra com saldo zero, para não "sumir" com dinheiro do cliente. */
-    public void encerrar(Instant quando) {
+    /**
+     * Saída de dinheiro. Com {@code podeUsarLimite}, o saldo pode ficar negativo até o limite do cheque
+     * especial; sem ele (ex.: guardar na caixinha), só o saldo próprio conta.
+     */
+    public Lancamento debitar(TipoLancamento tipo, BigDecimal valor, Contraparte contraparte, String mensagem,
+            String idTransacao, Instant quando, boolean podeUsarLimite) {
+        if (tipo.credito()) {
+            throw new IllegalArgumentException(tipo + " não é débito");
+        }
+        BigDecimal valido = Dinheiro.validarValor(valor);
         exigirAtiva();
+        BigDecimal disponivel = podeUsarLimite ? disponivel() : saldo.max(zero());
+        if (disponivel.compareTo(valido) < 0) {
+            throw new SaldoInsuficienteException(disponivel, valido, podeUsarLimite && limite.signum() > 0);
+        }
+        saldo = saldo.subtract(valido);
+        return lancamento(tipo, valido, contraparte, mensagem, idTransacao, quando);
+    }
+
+    /** Juros do cheque especial: cobrados mesmo com a conta bloqueada e mesmo passando do limite. */
+    public Lancamento cobrarJuros(BigDecimal valor, String idTransacao, String mensagem, Instant quando) {
+        BigDecimal valido = Dinheiro.validarValor(valor);
+        exigirNaoEncerrada();
+        saldo = saldo.subtract(valido);
+        return lancamento(TipoLancamento.JUROS_CHEQUE_ESPECIAL, valido, null, mensagem, idTransacao, quando);
+    }
+
+    /** Define o limite do cheque especial. Não deixa baixar abaixo do que o cliente já está usando. */
+    public void definirLimite(BigDecimal novoLimite) {
+        exigirNaoEncerrada();
+        BigDecimal valor = Dinheiro.validarValorOuZero(novoLimite);
+        if (valor.compareTo(LIMITE_MAXIMO) > 0) {
+            throw new OperacaoInvalidaException("O limite máximo do cheque especial é " + Dinheiro.formatar(LIMITE_MAXIMO) + ".");
+        }
+        if (usoDoLimite().compareTo(valor) > 0) {
+            throw new OperacaoInvalidaException("O cliente está usando " + Dinheiro.formatar(usoDoLimite())
+                    + " do cheque especial; o novo limite não pode ser menor que isso.");
+        }
+        limite = valor;
+    }
+
+    public void bloquear(String motivo) {
+        exigirNaoEncerrada();
+        if (situacao == SituacaoConta.BLOQUEADA) {
+            throw new OperacaoInvalidaException("A conta " + numero + " já está bloqueada.");
+        }
+        String texto = motivo == null ? "" : motivo.trim();
+        if (texto.length() < 5) {
+            throw new OperacaoInvalidaException("Informe o motivo do bloqueio (pelo menos 5 caracteres).");
+        }
+        situacao = SituacaoConta.BLOQUEADA;
+        motivoBloqueio = texto.length() > 200 ? texto.substring(0, 200) : texto;
+    }
+
+    public void desbloquear() {
+        if (situacao != SituacaoConta.BLOQUEADA) {
+            throw new OperacaoInvalidaException("A conta " + numero + " não está bloqueada.");
+        }
+        situacao = SituacaoConta.ATIVA;
+        motivoBloqueio = null;
+    }
+
+    /** Só encerra com saldo zero, para não "sumir" com dinheiro do cliente nem com dívida do banco. */
+    public void encerrar(Instant quando) {
+        exigirNaoEncerrada();
         if (saldo.signum() != 0) {
             throw new OperacaoInvalidaException("Para encerrar, o saldo precisa estar zerado. Saldo atual: "
                     + Dinheiro.formatar(saldo) + ".");
         }
         situacao = SituacaoConta.ENCERRADA;
+        limite = zero();
         encerradaEm = quando;
+    }
+
+    /** Saldo + limite do cheque especial. */
+    public BigDecimal disponivel() {
+        return saldo.add(limite);
+    }
+
+    /** Quanto do cheque especial está em uso (zero se o saldo for positivo). */
+    public BigDecimal usoDoLimite() {
+        return saldo.signum() < 0 ? saldo.negate() : zero();
+    }
+
+    public boolean pertenceA(Long clienteId) {
+        return clienteId != null && clienteId.equals(cliente.getId());
     }
 
     /** Mensagem de boas-vindas do desafio original do terminal. */
     public String mensagemDeBoasVindas() {
-        return "Olá " + titular + ", obrigado por criar uma conta em nosso banco, sua agência é " + agencia
+        return "Olá " + cliente.getNome() + ", obrigado por criar uma conta em nosso banco, sua agência é " + agencia
                 + ", conta " + numero + " e seu saldo " + Dinheiro.formatar(saldo) + " já está disponível para saque.";
     }
 
-    private Lancamento creditar(TipoLancamento tipo, BigDecimal valor, String contraparte, Instant quando) {
-        exigirAtiva();
-        saldo = saldo.add(valor);
-        return new Lancamento(this, tipo, valor, saldo, contraparte, quando);
+    private Lancamento lancamento(TipoLancamento tipo, BigDecimal valor, Contraparte contraparte, String mensagem,
+            String idTransacao, Instant quando) {
+        return new Lancamento(this, tipo, valor, saldo, contraparte == null ? null : contraparte.numero(),
+                contraparte == null ? null : contraparte.nome(), limparMensagem(mensagem), idTransacao, quando);
     }
 
-    private Lancamento debitar(TipoLancamento tipo, BigDecimal valor, String contraparte, Instant quando) {
-        exigirAtiva();
-        if (saldo.compareTo(valor) < 0) {
-            throw new SaldoInsuficienteException(saldo, valor);
+    public void exigirAtiva() {
+        exigirNaoEncerrada();
+        if (situacao == SituacaoConta.BLOQUEADA) {
+            throw new OperacaoInvalidaException("A conta " + numero + " está bloqueada para saídas. Procure seu gerente.");
         }
-        saldo = saldo.subtract(valor);
-        return new Lancamento(this, tipo, valor, saldo, contraparte, quando);
     }
 
-    private void exigirAtiva() {
+    private void exigirNaoEncerrada() {
         if (situacao == SituacaoConta.ENCERRADA) {
             throw new OperacaoInvalidaException("A conta " + numero + " está encerrada.");
         }
+    }
+
+    private static String limparMensagem(String mensagem) {
+        if (mensagem == null || mensagem.isBlank()) {
+            return null;
+        }
+        String texto = mensagem.trim().replaceAll("\\s+", " ");
+        if (texto.length() > 140) {
+            throw new OperacaoInvalidaException("A mensagem pode ter no máximo 140 caracteres.");
+        }
+        return texto;
     }
 
     private static String validarAgencia(String agencia) {
@@ -149,18 +251,8 @@ public class Conta {
         return valor;
     }
 
-    private static String validarTitular(String titular) {
-        String nome = titular == null ? "" : titular.trim().replaceAll("\\s+", " ");
-        if (nome.length() < 3) {
-            throw new OperacaoInvalidaException("Informe o nome do titular (pelo menos 3 letras).");
-        }
-        if (nome.length() > 80) {
-            throw new OperacaoInvalidaException("O nome do titular pode ter no máximo 80 caracteres.");
-        }
-        if (!nome.matches("[\\p{L} .'-]+")) {
-            throw new OperacaoInvalidaException("O nome do titular deve ter apenas letras.");
-        }
-        return nome;
+    private static BigDecimal zero() {
+        return BigDecimal.ZERO.setScale(2);
     }
 
     public Long getId() {
@@ -179,16 +271,24 @@ public class Conta {
         return agencia;
     }
 
-    public String getTitular() {
-        return titular;
+    public Cliente getCliente() {
+        return cliente;
     }
 
     public BigDecimal getSaldo() {
         return saldo;
     }
 
+    public BigDecimal getLimite() {
+        return limite;
+    }
+
     public SituacaoConta getSituacao() {
         return situacao;
+    }
+
+    public String getMotivoBloqueio() {
+        return motivoBloqueio;
     }
 
     public Instant getAbertaEm() {
