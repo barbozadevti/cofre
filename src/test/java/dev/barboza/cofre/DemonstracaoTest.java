@@ -42,7 +42,7 @@ class DemonstracaoTest {
     @Test
     void criaSeisMesesDeHistoricoEUmClienteNoChequeEspecial() {
         UsuarioLogado gerente = autenticacao.autenticar("gerente@cofre.dev", DadosDeDemonstracao.SENHA).usuario();
-        assertThat(contas.contasVisiveis(gerente)).hasSize(5);
+        assertThat(contas.contasVisiveis(gerente)).hasSize(6);
 
         Conta joao = contas.pesquisar(gerente, "João").getFirst();
         assertThat(joao.getSaldo().signum()).isNegative();

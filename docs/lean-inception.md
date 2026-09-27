@@ -7,102 +7,110 @@
 
 ## 1. Visão do produto
 
-**Para** pequenas cooperativas, fintechs em fase de protótipo e quem estuda sistemas bancários
-**cujo** problema é ter um núcleo de conta corrente confiável (saldo que nunca fica errado, extrato que explica cada centavo) sem montar um core bancário inteiro,
-**o Cofre** é um banco digital com API REST, site e terminal
-**que** abre contas, movimenta dinheiro (depósito, saque, transferência) e mostra o extrato com o saldo após cada operação.
-**Diferente de** exemplos didáticos que usam `double` e deixam o saldo ficar negativo,
-**o nosso produto** usa valores decimais exatos, regras de negócio no domínio, transações atômicas e testes automatizados em todas as camadas.
+**Para** cooperativas de crédito, fintechs em fase de protótipo e equipes que estudam sistemas bancários
+**cujo** problema é ter um núcleo bancário confiável (saldo que nunca fica errado, Pix no padrão do Banco Central, controle de acesso por papel) sem montar um core bancário inteiro,
+**o Cofre** é um banco digital com app do cliente, balcão da agência, backoffice do gerente, API e terminal
+**que** abre contas, movimenta dinheiro por Pix e transferência, oferece cheque especial, caixinhas e cartão virtual, e registra cada ação numa auditoria.
+**Diferente de** exemplos didáticos que usam `double`, não têm login e deixam o saldo ficar negativo sem regra,
+**o nosso produto** tem regras de dinheiro no domínio, perfis com permissões testadas, Pix com BR Code real e testes rodando em H2 e PostgreSQL.
 
 ## 2. O produto É / NÃO É / FAZ / NÃO FAZ
 
 | É | NÃO É |
 |---|---|
-| Um núcleo de conta corrente com API REST | Um banco real ou um sistema homologado pelo Banco Central |
-| Um site para operar as contas | Um aplicativo de celular nativo |
-| Um terminal (console) para operar as mesmas contas | Um sistema com login de clientes (ainda) |
+| Um núcleo bancário com app, balcão e backoffice | Um banco real ou um sistema homologado pelo Banco Central |
+| Um Pix entre contas do Cofre no padrão BR Code | Um participante do SPI (não liquida Pix com outros bancos) |
+| Um sistema com perfis e auditoria | Um aplicativo nativo de celular (é web responsivo) |
 
 | FAZ | NÃO FAZ |
 |---|---|
-| Abre conta com agência, número e dígito verificador | Integração com PIX, TED ou boletos reais |
-| Deposita, saca e transfere com validação de saldo | Cheque especial, juros ou tarifas (ainda) |
-| Mostra extrato com saldo após cada lançamento | Investimentos ou cartões |
-| Mantém site e terminal sobre os mesmos dados | Guarda dados sensíveis como senha ou CPF |
+| Pix por chave, QR Code e copia e cola, com limite noturno | TED, boletos ou Pix com outros bancos |
+| Cheque especial com juros diários | Empréstimos parcelados ou financiamentos |
+| Caixinhas com meta | Investimentos com rendimento |
+| Cartão virtual com CVV dinâmico | Autorização de compras de cartão |
+| Auditoria de todas as ações | Guardar senha ou CVV em texto |
 
 ## 3. Objetivos do produto
 
-1. **Saldo sempre correto:** nenhuma operação deixa o saldo negativo ou perde centavos (`BigDecimal`, transação única por operação, controle de concorrência otimista).
-2. **Extrato que explica:** cada lançamento mostra tipo, valor, contraparte e saldo resultante.
-3. **Mesmo núcleo, vários canais:** site, API e terminal usam o mesmo serviço de domínio.
-4. **Fácil de avaliar:** sobe com um clique, já com contas de demonstração, sem instalar banco de dados.
+1. **Saldo sempre correto:** nenhuma operação passa do limite ou perde centavos (`BigDecimal`, transação única, concorrência otimista, idempotência).
+2. **Cada um no seu papel:** o cliente só vê o que é dele; o caixa só opera o balcão; o gerente administra, e tudo fica auditado.
+3. **Pix de verdade:** chaves, BR Code com CRC16, confirmação do destinatário e limites por horário, como no regulamento.
+4. **Fácil de avaliar:** sobe com um comando, já com clientes, funcionários e seis meses de movimentação.
 
 ## 4. Personas
 
-### Carla, gerente de uma cooperativa de crédito (41 anos)
-- **Comportamento:** atende no balcão, abre contas e registra depósitos em dinheiro.
-- **Necessidades:** uma tela simples, com o saldo sempre visível e mensagens claras quando algo não pode ser feito.
+### Mario, cliente (34 anos)
+- **Comportamento:** recebe salário por Pix, paga tudo pelo celular, guarda dinheiro para trocar de carro.
+- **Necessidades:** ver o saldo rápido, pagar com QR Code, conferir para quem está mandando o dinheiro.
 
-### Diego, desenvolvedor de uma fintech (29 anos)
-- **Comportamento:** integra sistemas por API e lê a documentação antes do código.
-- **Necessidades:** endpoints previsíveis, erros no padrão `application/problem+json` e regras de saldo no servidor.
+### João, cliente no aperto (41 anos)
+- **Comportamento:** usa o cheque especial no fim do mês.
+- **Necessidades:** saber quanto do limite está usando e quanto está pagando de juros.
 
-### Seu Antônio, caixa da cooperativa (58 anos)
-- **Comportamento:** usa o terminal da agência, que é rápido e não depende de navegador.
-- **Necessidades:** um menu numerado, que peça um dado por vez e não trave quando ele digita errado.
+### Antônio, caixa da agência (58 anos)
+- **Comportamento:** atende no balcão; prefere o terminal, rápido e sem distrações.
+- **Necessidades:** achar a conta pelo nome ou CPF, depositar e sacar sem erro.
+
+### Carla, gerente (45 anos)
+- **Comportamento:** abre contas, define limites, age rápido em suspeita de fraude.
+- **Necessidades:** indicadores da agência, bloqueio com motivo, histórico de quem fez o quê.
 
 ## 5. Jornadas
 
-**Carla abre uma conta**
-1. Clica em "Abrir conta", informa o nome do cliente, a agência e o depósito inicial.
-2. O Cofre gera o número com dígito verificador e mostra "Olá Mario Andrade, obrigado por criar uma conta...".
-3. A conta aparece na lista, já com o lançamento de abertura no extrato.
+**Mario paga a aula de violão por QR Code**
+1. A professora gera a cobrança no app dela (QR Code de R$ 120,00).
+2. Mario cola o código, o Cofre mostra "Beatriz Lima, CPF ***.508.249-**" e o valor.
+3. Mario confirma e recebe o comprovante com a autenticação da transação.
 
-**Diego integra um saque**
-1. Chama `POST /api/contas/{numero}/saques` com o valor.
-2. Sem saldo, recebe `422` com `"Saldo insuficiente: disponível R$ 80,00, solicitado R$ 100,00"`.
-3. Com saldo, recebe a conta atualizada e o lançamento aparece no extrato.
+**Carla abre a conta de um cliente novo**
+1. Informa nome, CPF, e-mail, agência, depósito inicial e limite.
+2. O Cofre mostra "Olá Rafael, obrigado por criar uma conta em nosso banco..." e uma senha provisória.
+3. No primeiro acesso, o cliente é obrigado a criar uma senha própria.
 
-**Seu Antônio registra uma transferência pelo terminal**
-1. Escolhe a opção 4 no menu, digita a conta de origem, a de destino e o valor.
-2. Digita "abc" no valor por engano; o terminal explica e pede de novo.
-3. Confirma e vê os dois saldos atualizados.
+**Carla bloqueia uma conta por suspeita de fraude**
+1. Encontra a conta, clica em Bloquear e informa o motivo.
+2. A conta continua recebendo, mas nenhum Pix, transferência ou saque é aceito.
+3. A ação fica na auditoria, com o motivo e a origem.
 
 ## 6. Funcionalidades e revisão técnica
 
 | Funcionalidade | Esforço | Valor de negócio | Valor de UX |
 |---|---|---|---|
-| Abrir conta (agência, número com DV, saldo inicial) | E | $$$ | ♥♥♥ |
-| Depositar | E | $$$ | ♥♥ |
-| Sacar com validação de saldo | E | $$$ | ♥♥ |
-| Transferir entre contas (atômico) | EE | $$$ | ♥♥ |
-| Extrato com saldo após cada lançamento | EE | $$$ | ♥♥♥ |
-| Erros padronizados (problem+json) em português | E | $$ | ♥♥ |
-| Site responsivo (claro e escuro) | EE | $$ | ♥♥♥ |
-| Modo terminal com menu | EE | $$ | ♥♥ |
-| Contas de demonstração na primeira execução | E | $ | ♥♥♥ |
-| Encerrar conta (só com saldo zero) | E | $$ | ♥ |
-| Filtro do extrato por período | E | $$ | ♥♥ |
-| Exportar extrato em CSV | E | $ | ♥♥ |
-| Limite de cheque especial | EE | $$ | ♥ |
-| Login e perfis (gerente, caixa, cliente) | EEE | $$$ | ♥♥ |
-| PIX simulado (chaves) | EEE | $$ | ♥♥♥ |
+| Contas, depósito, saque, extrato | E | $$$ | ♥♥♥ |
+| Transferência atômica e idempotente | EE | $$$ | ♥♥ |
+| Login com perfis (cliente, caixa, gerente) | EEE | $$$ | ♥♥ |
+| Bloqueio após senhas erradas, senha provisória | EE | $$$ | ♥ |
+| Cheque especial com juros diários | EE | $$$ | ♥♥ |
+| Pix: chaves e envio com confirmação | EE | $$$ | ♥♥♥ |
+| Pix: BR Code (QR Code e copia e cola) | EEE | $$ | ♥♥♥ |
+| Pix: limite noturno | E | $$ | ♥ |
+| Comprovantes | E | $$ | ♥♥♥ |
+| Caixinhas | EE | $$ | ♥♥♥ |
+| Cartão virtual com CVV dinâmico | EE | $$ | ♥♥♥ |
+| Backoffice do gerente e auditoria | EEE | $$$ | ♥♥ |
+| Terminal da agência | EE | $ | ♥♥ |
+| PostgreSQL, Flyway e Docker | EE | $$ | ♥ |
+| Notificações por e-mail | EE | $$ | ♥♥ |
+| Autenticação em dois fatores | EEE | $$$ | ♥ |
 
 ## 7. Sequenciamento em ondas
 
 | Onda | Funcionalidades | Situação |
 |---|---|---|
-| 1 | Abrir conta, depositar, sacar, extrato, API com erros padronizados | Entregue |
-| 2 | Transferência atômica, site responsivo, contas de demonstração | Entregue |
-| 3 | Modo terminal, atalho de um clique, CI | Entregue |
-| 4 | Encerrar conta, filtro do extrato por período, exportar CSV | Entregue |
-| 5 | Limite de cheque especial, login e perfis | Próxima |
-| 6 | PIX simulado com chaves | Futuro |
+| 1 | Contas, depósito, saque, extrato, erros padronizados | Entregue |
+| 2 | Transferência atômica, site responsivo, dados de demonstração | Entregue |
+| 3 | Terminal, atalho de um clique, CI | Entregue |
+| 4 | Encerramento, filtro do extrato, CSV | Entregue |
+| 5 | Login com perfis, cheque especial com juros, backoffice e auditoria | Entregue |
+| 6 | Pix completo (chaves, BR Code, limites, comprovantes), caixinhas, cartão virtual | Entregue |
+| 7 | PostgreSQL com Flyway, Docker Compose, OpenAPI, novo visual | Entregue |
+| 8 | Notificações por e-mail, autenticação em dois fatores, limites de Pix ajustáveis pelo cliente | Próxima |
 
 ## 8. MVP
 
-**Hipótese:** um núcleo de conta corrente com regras de saldo no servidor, extrato explicativo e dois canais (site e terminal) é suficiente para uma cooperativa pequena registrar o dia a dia do balcão.
+**Hipótese:** um banco digital com regras de dinheiro no servidor, Pix no padrão do Banco Central e papéis bem separados (cliente, caixa e gerente) atende o dia a dia de uma cooperativa pequena.
 
-**Ondas 1 a 3.** Validado quando:
-- nenhuma operação resulta em saldo negativo ou em diferença de centavos (garantido por testes);
-- uma transferência que falha não altera nenhuma das duas contas;
-- a mesma conta aparece igual no site e no terminal.
+**Ondas 1 a 6.** Validado quando:
+- nenhuma operação resulta em saldo além do limite ou em diferença de centavos (garantido por testes, inclusive concorrentes);
+- um cliente não consegue ver nem movimentar a conta de outro (testado na API);
+- um BR Code gerado pelo Cofre é idêntico ao exemplo da documentação oficial do Pix.

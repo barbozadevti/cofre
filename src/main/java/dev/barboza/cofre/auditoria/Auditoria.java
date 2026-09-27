@@ -24,6 +24,9 @@ public class Auditoria {
     /** Registra dentro da transação da operação: se a operação falhar, o registro também não fica. */
     @Transactional(propagation = Propagation.MANDATORY)
     public void registrar(UsuarioLogado quem, String acao, String detalhe) {
+        if (quem == UsuarioLogado.SISTEMA) {
+            return; // carga de dados de demonstração e rotinas internas não poluem a auditoria
+        }
         eventos.save(new EventoAuditoria(relogio.instant(), quem.login(), quem.perfil().name(), acao, detalhe, origem()));
     }
 
@@ -35,7 +38,8 @@ public class Auditoria {
 
     private static String origem() {
         if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes atributos) {
-            return atributos.getRequest().getRemoteAddr();
+            String endereco = atributos.getRequest().getRemoteAddr();
+            return "0:0:0:0:0:0:0:1".equals(endereco) ? "::1" : endereco;
         }
         return "terminal";
     }

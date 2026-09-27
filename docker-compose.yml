@@ -1,0 +1,32 @@
+# Cofre + PostgreSQL. Uso: docker compose up --build   ->   http://localhost:5230
+services:
+  banco:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: cofre
+      POSTGRES_USER: cofre
+      POSTGRES_PASSWORD: cofre
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cofre -d cofre"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - dados:/var/lib/postgresql/data
+
+  cofre:
+    build: .
+    ports:
+      - "5230:5230"
+    environment:
+      SPRING_PROFILES_ACTIVE: postgres
+      COFRE_BANCO_URL: jdbc:postgresql://banco:5432/cofre
+      COFRE_BANCO_USUARIO: cofre
+      COFRE_BANCO_SENHA: cofre
+      COFRE_CARTAO_SEGREDO: troque-este-segredo-em-producao
+    depends_on:
+      banco:
+        condition: service_healthy
+
+volumes:
+  dados:

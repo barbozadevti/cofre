@@ -5,7 +5,8 @@ on:
   pull_request:
 
 jobs:
-  testes:
+  testes-h2:
+    name: Testes (H2) e teste de fumaça
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -16,10 +17,66 @@ jobs:
           cache: maven
       - name: Testes e empacotamento
         run: mvn -B verify
-      - name: Teste de fumaça do jar
+      - name: Teste de fumaça do jar (site, login e API)
         run: |
-          java -jar target/cofre.jar --spring.datasource.url=jdbc:h2:mem:fumaca &
-          for i in $(seq 1 60); do curl -sf http://localhost:5230/health && break; sleep 1; done
-          curl -sf http://localhost:5230/api/contas | grep -q "Mario Andrade"
+          java -jar target/cofre.jar --spring.datasource.url=jdbc:h2:mem:fumaca --cofre.juros.agendado=false &
+          for i in $(seq 1 90); do curl -sf http://localhost:5230/health && break; sleep 1; done
           curl -sf http://localhost:5230/ | grep -q "<title>Cofre</title>"
-          printf '6\n0\n' | java -jar target/cofre.jar --terminal --spring.datasource.url=jdbc:h2:mem:fumaca-terminal | grep -q "Helena Prado"
+          curl -sf http://localhost:5230/v3/api-docs | grep -q "Cofre"
+          curl -s -c c.txt -b c.txt http://localhost:5230/api/auth/csrf > /dev/null
+          TOKEN=$(grep XSRF-TOKEN c.txt | awk '{print $7}')
+          curl -sf -c c.txt -b c.txt -H "X-XSRF-TOKEN: $TOKEN" -H 'Content-Type: application/json' \
+            -d '{"login":"mario@cofre.dev","senha":"Cofre@2026"}' http://localhost:5230/api/auth/entrar | grep -q CLIENTE
+          curl -sf -b c.txt http://localhost:5230/api/app/painel | grep -q "Mario Andrade"
+      - name: Teste de fumaça do terminal
+        run: |
+          printf 'caixa@cofre.dev\nCofre@2026\n1\n\n0\n' | java -jar target/cofre.jar --terminal \
+            --spring.datasource.url=jdbc:h2:mem:fumaca-terminal | grep -q "Helena Prado"
+
+  testes-postgres:
+    name: Testes (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: cofre
+          POSTGRES_USER: cofre
+          POSTGRES_PASSWORD: cofre
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cofre -d cofre" --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/cofre
+      SPRING_DATASOURCE_USERNAME: cofre
+      SPRING_DATASOURCE_PASSWORD: cofre
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Mesma bateria de testes, com migrações Flyway no PostgreSQL
+        run: mvn -B test
+
+  docker:
+    name: Docker Compose (Cofre + PostgreSQL)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Subir com Docker Compose
+        run: docker compose up -d --build
+      - name: Teste de fumaça
+        run: |
+          for i in $(seq 1 120); do curl -sf http://localhost:5230/health && break; sleep 1; done
+          curl -sf http://localhost:5230/ | grep -q "<title>Cofre</title>"
+          curl -s -c c.txt -b c.txt http://localhost:5230/api/auth/csrf > /dev/null
+          TOKEN=$(grep XSRF-TOKEN c.txt | awk '{print $7}')
+          curl -sf -c c.txt -b c.txt -H "X-XSRF-TOKEN: $TOKEN" -H 'Content-Type: application/json' \
+            -d '{"login":"gerente@cofre.dev","senha":"Cofre@2026"}' http://localhost:5230/api/auth/entrar | grep -q GERENTE
+          curl -sf -b c.txt http://localhost:5230/api/gerencia/indicadores | grep -q contasAtivas
+      - name: Logs em caso de falha
+        if: failure()
+        run: docker compose logs
