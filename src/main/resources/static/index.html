@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cofre</title>
+  <meta name="description" content="Banco digital: contas, depósitos, saques, transferências e extrato.">
+  <link rel="icon" href="cofre.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topo">
+    <div class="marca">
+      <img src="cofre.svg" alt="" width="36" height="36">
+      <div>
+        <h1>Cofre</h1>
+        <p>banco digital</p>
+      </div>
+    </div>
+    <dl class="resumo" aria-live="polite">
+      <div><dt>Contas ativas</dt><dd id="resumo-contas">–</dd></div>
+      <div><dt>Saldo em custódia</dt><dd id="resumo-total">–</dd></div>
+    </dl>
+  </header>
+
+  <main class="layout">
+    <aside class="lateral" aria-label="Contas">
+      <div class="lateral-topo">
+        <h2>Contas</h2>
+        <button type="button" class="botao primario" id="botao-abrir">+ Abrir conta</button>
+      </div>
+      <label class="busca">
+        <span class="sr">Buscar conta</span>
+        <input type="search" id="busca" placeholder="Buscar por nome ou número" autocomplete="off">
+      </label>
+      <ul class="lista-contas" id="lista-contas"></ul>
+    </aside>
+
+    <section class="painel" id="painel" aria-live="polite">
+      <div class="vazio" id="painel-vazio">
+        <img src="cofre.svg" alt="" width="64" height="64">
+        <p>Escolha uma conta na lista ou abra uma nova.</p>
+      </div>
+
+      <div id="painel-conta" hidden>
+        <div class="cartao-conta">
+          <div>
+            <p class="rotulo" id="conta-identificacao"></p>
+            <h2 id="conta-titular"></h2>
+            <span class="selo" id="conta-situacao"></span>
+          </div>
+          <div class="saldo">
+            <p class="rotulo">Saldo disponível</p>
+            <p class="valor-saldo" id="conta-saldo"></p>
+          </div>
+        </div>
+
+        <div class="operacoes" id="operacoes">
+          <div class="abas" role="tablist" aria-label="Operações">
+            <button type="button" role="tab" class="aba" data-aba="deposito" aria-selected="true">Depositar</button>
+            <button type="button" role="tab" class="aba" data-aba="saque" aria-selected="false">Sacar</button>
+            <button type="button" role="tab" class="aba" data-aba="transferencia" aria-selected="false">Transferir</button>
+            <button type="button" role="tab" class="aba" data-aba="encerrar" aria-selected="false">Encerrar</button>
+          </div>
+
+          <form class="form-operacao" id="form-operacao" novalidate>
+            <div class="campo" id="campo-destino" hidden>
+              <label for="destino">Conta de destino</label>
+              <select id="destino"></select>
+            </div>
+            <div class="campo" id="campo-valor">
+              <label for="valor">Valor</label>
+              <div class="entrada-valor">
+                <span>R$</span>
+                <input id="valor" inputmode="decimal" autocomplete="off" placeholder="0,00">
+              </div>
+            </div>
+            <p class="aviso" id="aviso-encerrar" hidden>
+              A conta só pode ser encerrada com saldo zerado. Depois de encerrada, não aceita mais movimentações.
+            </p>
+            <button type="submit" class="botao primario" id="botao-operacao">Depositar</button>
+          </form>
+        </div>
+
+        <div class="extrato">
+          <div class="extrato-topo">
+            <h3>Extrato</h3>
+            <form class="periodo" id="form-periodo">
+              <label>De <input type="date" id="de"></label>
+              <label>Até <input type="date" id="ate"></label>
+              <button type="submit" class="botao">Filtrar</button>
+              <a class="botao" id="exportar" href="#" download>Exportar CSV</a>
+            </form>
+          </div>
+          <dl class="totais">
+            <div><dt>Saldo anterior</dt><dd id="t-inicial"></dd></div>
+            <div><dt>Entradas</dt><dd class="credito" id="t-entradas"></dd></div>
+            <div><dt>Saídas</dt><dd class="debito" id="t-saidas"></dd></div>
+            <div><dt>Saldo no fim</dt><dd id="t-final"></dd></div>
+          </dl>
+          <div class="tabela-rolagem">
+            <table>
+              <thead>
+                <tr><th>Data</th><th>Descrição</th><th class="num">Valor</th><th class="num">Saldo</th></tr>
+              </thead>
+              <tbody id="lancamentos"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="dialogo-abrir" aria-labelledby="titulo-abrir">
+    <form method="dialog" id="form-abrir" novalidate>
+      <h2 id="titulo-abrir">Abrir conta</h2>
+      <div class="campo">
+        <label for="titular">Nome do cliente</label>
+        <input id="titular" autocomplete="off" maxlength="80" required>
+      </div>
+      <div class="campo">
+        <label for="agencia">Agência</label>
+        <input id="agencia" inputmode="numeric" maxlength="4" placeholder="0001">
+      </div>
+      <div class="campo">
+        <label for="saldo-inicial">Depósito inicial</label>
+        <div class="entrada-valor">
+          <span>R$</span>
+          <input id="saldo-inicial" inputmode="decimal" autocomplete="off" placeholder="0,00">
+        </div>
+      </div>
+      <p class="erro-form" id="erro-abrir" role="alert" hidden></p>
+      <div class="acoes-dialogo">
+        <button type="button" class="botao" id="cancelar-abrir">Cancelar</button>
+        <button type="submit" class="botao primario" value="abrir">Abrir conta</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="avisos" id="avisos" aria-live="assertive"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
