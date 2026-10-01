@@ -87,11 +87,14 @@ public class PixController {
         return pix.limites(u, numero);
     }
 
-    @Operation(summary = "Enviar Pix", description = "Limite noturno (20h às 6h) de R$ 1.000,00. Use Idempotency-Key para evitar envio duplicado.")
+    @Operation(summary = "Enviar Pix", description = "Limite noturno (20h às 6h) de R$ 1.000,00. Use Idempotency-Key para evitar "
+            + "envio duplicado. Com nota de risco alta, responde 428 com os motivos; para enviar mesmo assim, repita com "
+            + "o cabeçalho X-Confirmacao-Risco: confirmo.")
     @PostMapping("/envios")
     public Comprovante enviar(@AuthenticationPrincipal UsuarioLogado u,
-            @RequestHeader(value = "Idempotency-Key", required = false) String chave, @Valid @RequestBody Envio envio) {
-        return pix.enviar(u, envio.conta(), envio.chave(), envio.valor(), envio.mensagem(), chave);
+            @RequestHeader(value = "Idempotency-Key", required = false) String chave,
+            @RequestHeader(value = "X-Confirmacao-Risco", required = false) String confirmacao, @Valid @RequestBody Envio envio) {
+        return pix.enviar(u, envio.conta(), envio.chave(), envio.valor(), envio.mensagem(), chave, "confirmo".equals(confirmacao));
     }
 
     @Operation(summary = "Gerar cobrança", description = "Devolve o código copia e cola (BR Code com CRC16) e o QR Code em SVG.")
@@ -109,7 +112,8 @@ public class PixController {
     @PostMapping("/copia-e-cola/pagamento")
     public Comprovante pagar(@AuthenticationPrincipal UsuarioLogado u,
             @RequestHeader(value = "Idempotency-Key", required = false) String chave,
+            @RequestHeader(value = "X-Confirmacao-Risco", required = false) String confirmacao,
             @Valid @RequestBody PagamentoCopiaECola pagamento) {
-        return pix.pagarCopiaECola(u, pagamento.conta(), pagamento.codigo(), pagamento.valor(), chave);
+        return pix.pagarCopiaECola(u, pagamento.conta(), pagamento.codigo(), pagamento.valor(), chave, "confirmo".equals(confirmacao));
     }
 }

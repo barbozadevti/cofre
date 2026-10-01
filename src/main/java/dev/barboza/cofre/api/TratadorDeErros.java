@@ -33,6 +33,15 @@ public class TratadorDeErros {
         return problema(HttpStatus.UNPROCESSABLE_CONTENT, "Operação não permitida", e.getMessage());
     }
 
+    /** 428: o Pix precisa de confirmação reforçada. A resposta traz a nota e os motivos para a tela mostrar. */
+    @ExceptionHandler(dev.barboza.cofre.pix.ConfirmacaoDeRiscoException.class)
+    ProblemDetail confirmacaoDeRisco(dev.barboza.cofre.pix.ConfirmacaoDeRiscoException e) {
+        ProblemDetail p = problema(HttpStatus.PRECONDITION_REQUIRED, "Confirme este Pix", e.getMessage());
+        p.setProperty("pontuacao", e.getAvaliacao().pontuacao());
+        p.setProperty("fatores", e.getAvaliacao().fatores());
+        return p;
+    }
+
     @ExceptionHandler(AcessoNegadoException.class)
     ProblemDetail acessoNegado(AcessoNegadoException e) {
         return problema(HttpStatus.FORBIDDEN, "Acesso negado", e.getMessage());

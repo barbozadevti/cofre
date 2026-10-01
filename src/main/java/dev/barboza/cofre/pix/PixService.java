@@ -45,14 +45,16 @@ public class PixService {
     private final ContaService contas;
     private final LancamentoRepository lancamentos;
     private final Auditoria auditoria;
+    private final RiscoPix risco;
     private final Clock relogio;
 
     public PixService(ChavePixRepository chaves, ContaService contas, LancamentoRepository lancamentos,
-            Auditoria auditoria, Clock relogio) {
+            Auditoria auditoria, RiscoPix risco, Clock relogio) {
         this.chaves = chaves;
         this.contas = contas;
         this.lancamentos = lancamentos;
         this.auditoria = auditoria;
+        this.risco = risco;
         this.relogio = relogio;
     }
 
@@ -138,9 +140,19 @@ public class PixService {
 
     // ---------- Envio ----------
 
-    @Transactional
+    @Transactional(noRollbackFor = ConfirmacaoDeRiscoException.class)
     public Comprovante enviar(UsuarioLogado quem, String contaOrigem, String chaveDestino, BigDecimal valor,
             String mensagem, String chaveIdempotencia) {
+        return enviar(quem, contaOrigem, chaveDestino, valor, mensagem, chaveIdempotencia, false);
+    }
+
+    /**
+     * Envia o Pix. Com nota de risco alta e sem {@code riscoConfirmado}, o Pix é retido (nada é debitado) e
+     * a retenção fica na auditoria; o cliente vê os motivos e decide se confirma.
+     */
+    @Transactional(noRollbackFor = ConfirmacaoDeRiscoException.class)
+    public Comprovante enviar(UsuarioLogado quem, String contaOrigem, String chaveDestino, BigDecimal valor,
+            String mensagem, String chaveIdempotencia, boolean riscoConfirmado) {
         Conta origem = contas.buscarInterno(contaOrigem);
         Acesso.exigirDono(quem, origem);
         Optional<Comprovante> repetido = contas.repetida(origem, chaveIdempotencia, quem);
@@ -157,6 +169,16 @@ public class PixService {
         if (valido.compareTo(limites.disponivelNoPeriodo()) > 0) {
             throw new OperacaoInvalidaException((limites.noturno() ? "Limite do Pix noturno (20h às 6h)" : "Limite do Pix diurno")
                     + " excedido: disponível " + Dinheiro.formatar(limites.disponivelNoPeriodo()) + ".");
+        }
+        RiscoPix.Avaliacao avaliacao = risco.avaliar(origem, destino, valido, agora);
+        if (avaliacao.exigeConfirmacao()) {
+            if (!riscoConfirmado) {
+                auditoria.registrar(quem, "PIX_RETIDO_RISCO", origem.getNumero() + " -> " + destino.getNumero() + ": "
+                        + Dinheiro.formatar(valido) + " (" + avaliacao.resumo() + ")");
+                throw new ConfirmacaoDeRiscoException(avaliacao);
+            }
+            auditoria.registrar(quem, "PIX_RISCO_CONFIRMADO", origem.getNumero() + " -> " + destino.getNumero() + ": "
+                    + Dinheiro.formatar(valido) + " (" + avaliacao.pontuacao() + " pontos)");
         }
         String id = contas.movimentar(origem, destino, valido, mensagem, TipoLancamento.PIX_ENVIADO,
                 TipoLancamento.PIX_RECEBIDO, 'E', agora, chaveIdempotencia);
@@ -231,13 +253,19 @@ public class PixService {
     }
 
     /** Paga um copia e cola. Se o código tem valor, ele prevalece sobre o informado. */
-    @Transactional
+    @Transactional(noRollbackFor = ConfirmacaoDeRiscoException.class)
     public Comprovante pagarCopiaECola(UsuarioLogado quem, String contaOrigem, String codigo, BigDecimal valorInformado,
             String chaveIdempotencia) {
+        return pagarCopiaECola(quem, contaOrigem, codigo, valorInformado, chaveIdempotencia, false);
+    }
+
+    @Transactional(noRollbackFor = ConfirmacaoDeRiscoException.class)
+    public Comprovante pagarCopiaECola(UsuarioLogado quem, String contaOrigem, String codigo, BigDecimal valorInformado,
+            String chaveIdempotencia, boolean riscoConfirmado) {
         BrCode.Dados dados = BrCode.ler(codigo);
         BigDecimal valor = dados.valor() != null ? dados.valor() : valorInformado;
         String mensagem = dados.descricao() != null ? dados.descricao() : null;
-        return enviar(quem, contaOrigem, dados.chave(), valor, mensagem, chaveIdempotencia);
+        return enviar(quem, contaOrigem, dados.chave(), valor, mensagem, chaveIdempotencia, riscoConfirmado);
     }
 
     // ---------- Apoio ----------

@@ -28,6 +28,15 @@ public interface LancamentoRepository extends JpaRepository<Lancamento, Long> {
 
     long countByContaIdAndTipo(Long contaId, TipoLancamento tipo);
 
+    /** Já houve envio desta conta para a contraparte? (antifraude: destinatário novo) */
+    boolean existsByContaIdAndContraparteAndTipoIn(Long contaId, String contraparte, Collection<TipoLancamento> tipos);
+
+    @Query("""
+            select l.valor from Lancamento l
+            where l.conta.id = :contaId and l.tipo = :tipo and l.dataHora >= :inicio and l.dataHora < :fim""")
+    List<BigDecimal> valores(@Param("contaId") Long contaId, @Param("tipo") TipoLancamento tipo,
+            @Param("inicio") Instant inicio, @Param("fim") Instant fim);
+
     /** Soma das saídas de certos tipos num intervalo (limites do Pix). */
     @Query("""
             select coalesce(sum(l.valor), 0) from Lancamento l

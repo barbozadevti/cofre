@@ -114,7 +114,8 @@ class PixServiceTest {
         String n = ana.conta().getNumero();
 
         relogio.ajustar(Instant.parse("2026-09-27T00:30:00Z")); // 21:30 em Brasília
-        pix.enviar(ana.usuario(), n, "joao@teste.dev", v("700"), null, null);
+        // Destinatário novo, à noite, conta aberta hoje: o antifraude pede confirmação (testado em RiscoPixTest).
+        pix.enviar(ana.usuario(), n, "joao@teste.dev", v("700"), null, null, true);
         relogio.ajustar(Instant.parse("2026-09-27T07:00:00Z")); // 04:00: mesma madrugada
         assertThat(pix.limites(ana.usuario(), n).disponivelNoPeriodo()).isEqualTo(v("300.00"));
         assertThatThrownBy(() -> pix.enviar(ana.usuario(), n, "joao@teste.dev", v("300.01"), null, null))
