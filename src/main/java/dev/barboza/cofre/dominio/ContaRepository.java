@@ -26,8 +26,15 @@ public interface ContaRepository extends JpaRepository<Conta, Long> {
     @Query("select coalesce(sum(c.saldo), 0) from Conta c where c.saldo > 0")
     BigDecimal totalEmCustodia();
 
-    @Query("select coalesce(sum(c.limite), 0) from Conta c where c.situacao <> dev.barboza.cofre.dominio.SituacaoConta.ENCERRADA")
+    @Query("select coalesce(sum(c.limite), 0) from ContaCorrente c where c.situacao <> dev.barboza.cofre.dominio.SituacaoConta.ENCERRADA")
     BigDecimal totalDeLimiteConcedido();
+
+    /** Poupanças que podem render (base do crédito diário de rendimentos). */
+    @Query("select p from ContaPoupanca p where p.saldo > 0 and p.situacao <> dev.barboza.cofre.dominio.SituacaoConta.ENCERRADA")
+    List<ContaPoupanca> poupancasComSaldo();
+
+    @Query("select count(p) from ContaPoupanca p where p.cliente.id = :clienteId and p.situacao <> dev.barboza.cofre.dominio.SituacaoConta.ENCERRADA")
+    long poupancasAbertas(@Param("clienteId") Long clienteId);
 
     @Query("select coalesce(sum(-c.saldo), 0) from Conta c where c.saldo < 0")
     BigDecimal totalDeLimiteEmUso();

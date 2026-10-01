@@ -59,6 +59,12 @@ public class AppController {
         return contas.contasVisiveis(u).stream().map(ContaResposta::de).toList();
     }
 
+    @Operation(summary = "Abrir minha poupança", description = "Uma por cliente, na mesma agência. Rende 0,5% ao mês no aniversário.")
+    @PostMapping("/poupanca")
+    public ResponseEntity<ContaResposta> abrirPoupanca(@AuthenticationPrincipal UsuarioLogado u) {
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(ContaResposta.de(contas.abrirMinhaPoupanca(u)));
+    }
+
     @GetMapping("/contas/{numero}/ultimos")
     public List<LancamentoResposta> ultimos(@AuthenticationPrincipal UsuarioLogado u, @PathVariable String numero) {
         return contas.ultimos(u, numero).stream().map(LancamentoResposta::de).toList();

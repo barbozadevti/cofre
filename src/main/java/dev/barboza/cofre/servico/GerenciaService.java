@@ -21,6 +21,7 @@ import dev.barboza.cofre.cartao.CartaoRepository;
 import dev.barboza.cofre.dominio.Cliente;
 import dev.barboza.cofre.dominio.ClienteRepository;
 import dev.barboza.cofre.dominio.Conta;
+import dev.barboza.cofre.dominio.ContaCorrente;
 import dev.barboza.cofre.dominio.ContaRepository;
 import dev.barboza.cofre.dominio.Cpf;
 import dev.barboza.cofre.dominio.Dinheiro;
@@ -104,7 +105,7 @@ public class GerenciaService {
             usuarios.save(new Usuario(cliente.getEmail(), cliente.getNome(), senhas.encode(senhaProvisoria),
                     Perfil.CLIENTE, cliente, true, agora));
         }
-        Conta conta = contaService.abrirPara(cliente, dados.agencia(),
+        ContaCorrente conta = contaService.abrirPara(cliente, dados.agencia(),
                 dados.depositoInicial() == null ? BigDecimal.ZERO : dados.depositoInicial(), agora);
         if (dados.limite() != null && dados.limite().signum() > 0) {
             conta.definirLimite(dados.limite());
@@ -119,7 +120,11 @@ public class GerenciaService {
         Acesso.exigirGerente(quem);
         Conta conta = contaService.buscarInterno(numero);
         BigDecimal anterior = conta.getLimite();
-        conta.definirLimite(limite);
+        // Só a conta corrente tem cheque especial: o tipo decide (pattern matching do Java 21).
+        if (!(conta instanceof ContaCorrente corrente)) {
+            throw new OperacaoInvalidaException("A conta " + conta.getNumero() + " é poupança e não tem cheque especial.");
+        }
+        corrente.definirLimite(limite);
         auditoria.registrar(quem, "LIMITE_ALTERADO", "Conta " + conta.getNumero() + ": " + Dinheiro.formatar(anterior)
                 + " -> " + Dinheiro.formatar(conta.getLimite()));
         return conta;

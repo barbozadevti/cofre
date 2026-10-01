@@ -14,6 +14,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import dev.barboza.cofre.dominio.Cliente;
 import dev.barboza.cofre.dominio.Conta;
+import dev.barboza.cofre.dominio.ContaCorrente;
 import dev.barboza.cofre.dominio.Cpf;
 import dev.barboza.cofre.dominio.Dinheiro;
 import dev.barboza.cofre.dominio.IdTransacao;
@@ -35,8 +36,8 @@ class DominioTest {
         return new BigDecimal(valor);
     }
 
-    private static Conta conta(String saldo, String limite) {
-        Conta conta = Conta.abrir(10001, "0001", MARIO, v(saldo), AGORA).conta();
+    private static ContaCorrente conta(String saldo, String limite) {
+        ContaCorrente conta = ContaCorrente.abrir(10001, "0001", MARIO, v(saldo), AGORA).conta();
         conta.definirLimite(v(limite));
         return conta;
     }
@@ -125,7 +126,7 @@ class DominioTest {
 
         @Test
         void sacaAlemDoSaldoAteOLimite() {
-            Conta conta = conta("100", "500");
+            ContaCorrente conta = conta("100", "500");
 
             sacar(conta, "600");
 
@@ -136,7 +137,7 @@ class DominioTest {
 
         @Test
         void naoPassaDoLimite() {
-            Conta conta = conta("100", "500");
+            ContaCorrente conta = conta("100", "500");
 
             assertThatThrownBy(() -> sacar(conta, "600.01"))
                     .isInstanceOf(SaldoInsuficienteException.class)
@@ -146,7 +147,7 @@ class DominioTest {
 
         @Test
         void caixinhaNaoUsaOLimite() {
-            Conta conta = conta("100", "500");
+            ContaCorrente conta = conta("100", "500");
 
             assertThatThrownBy(() -> conta.debitar(TipoLancamento.CAIXINHA_GUARDADO, v("100.01"), null, "Viagem", "T1", AGORA, false))
                     .hasMessage("Saldo insuficiente: disponível R$ 100,00, solicitado R$ 100,01.");
@@ -154,7 +155,7 @@ class DominioTest {
 
         @Test
         void limiteNaoPodeFicarAbaixoDoUso() {
-            Conta conta = conta("0", "800");
+            ContaCorrente conta = conta("0", "800");
             sacar(conta, "300");
 
             assertThatThrownBy(() -> conta.definirLimite(v("299.99")))
@@ -174,7 +175,7 @@ class DominioTest {
 
         @Test
         void jurosPodemPassarDoLimite() {
-            Conta conta = conta("0", "100");
+            ContaCorrente conta = conta("0", "100");
             sacar(conta, "100");
             conta.cobrarJuros(v("0.27"), "J1", null, AGORA);
             assertThat(conta.getSaldo()).isEqualTo(v("-100.27"));
@@ -186,7 +187,7 @@ class DominioTest {
 
         @Test
         void bloqueadaRecebeMasNaoMovimentaSaidas() {
-            Conta conta = conta("100", "0");
+            ContaCorrente conta = conta("100", "0");
             conta.bloquear("Suspeita de fraude");
 
             conta.creditar(TipoLancamento.DEPOSITO, v("50"), null, null, "T1", AGORA);
@@ -201,14 +202,14 @@ class DominioTest {
 
         @Test
         void bloqueioExigeMotivo() {
-            Conta conta = conta("0", "0");
+            ContaCorrente conta = conta("0", "0");
             assertThatThrownBy(() -> conta.bloquear("abc")).hasMessage("Informe o motivo do bloqueio (pelo menos 5 caracteres).");
             assertThatThrownBy(conta::desbloquear).hasMessage("A conta 10001-3 não está bloqueada.");
         }
 
         @Test
         void encerraSoComSaldoZero() {
-            Conta conta = conta("20", "100");
+            ContaCorrente conta = conta("20", "100");
             assertThatThrownBy(() -> conta.encerrar(AGORA))
                     .hasMessage("Para encerrar, o saldo precisa estar zerado. Saldo atual: R$ 20,00.");
             sacar(conta, "20");
@@ -229,7 +230,7 @@ class DominioTest {
 
         @Test
         void somaCentavosSemErroDeArredondamento() {
-            Conta conta = conta("0", "0");
+            ContaCorrente conta = conta("0", "0");
             for (int i = 0; i < 10; i++) {
                 conta.creditar(TipoLancamento.DEPOSITO, v("0.10"), null, null, "T" + i, AGORA);
             }

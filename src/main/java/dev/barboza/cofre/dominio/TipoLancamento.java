@@ -11,7 +11,8 @@ public enum TipoLancamento {
     PIX_RECEBIDO("Pix recebido", true),
     CAIXINHA_GUARDADO("Guardado na caixinha", false),
     CAIXINHA_RESGATADO("Resgate da caixinha", true),
-    JUROS_CHEQUE_ESPECIAL("Juros do cheque especial", false);
+    JUROS_CHEQUE_ESPECIAL("Juros do cheque especial", false),
+    RENDIMENTO_POUPANCA("Rendimento da poupança", true);
 
     private final String descricao;
     private final boolean credito;

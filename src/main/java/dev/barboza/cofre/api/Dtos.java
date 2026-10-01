@@ -8,10 +8,13 @@ import java.util.List;
 import dev.barboza.cofre.caixinha.Caixinha;
 import dev.barboza.cofre.cartao.Cartao;
 import dev.barboza.cofre.dominio.Conta;
+import dev.barboza.cofre.dominio.ContaPoupanca;
+import dev.barboza.cofre.dominio.TipoConta;
 import dev.barboza.cofre.dominio.Cpf;
 import dev.barboza.cofre.dominio.Lancamento;
 import dev.barboza.cofre.dominio.SituacaoConta;
 import dev.barboza.cofre.pix.ChavePix;
+import dev.barboza.cofre.servico.ContaService;
 import dev.barboza.cofre.servico.Extrato;
 import dev.barboza.cofre.servico.PainelService;
 import jakarta.validation.constraints.NotBlank;
@@ -39,6 +42,8 @@ public final class Dtos {
 
     public record ContaResposta(
             String numero,
+            TipoConta tipo,
+            String tipoNome,
             String agencia,
             String titular,
             String cpfMascarado,
@@ -49,12 +54,17 @@ public final class Dtos {
             SituacaoConta situacao,
             String motivoBloqueio,
             Instant abertaEm,
-            Instant encerradaEm) {
+            Instant encerradaEm,
+            Integer diaDeAniversario,
+            BigDecimal rendimentoEstimado) {
 
         static ContaResposta de(Conta c) {
-            return new ContaResposta(c.getNumero(), c.getAgencia(), c.getCliente().getNome(),
+            // Campos da poupança só aparecem nela (pattern matching sobre o tipo da conta).
+            Integer aniversario = c instanceof ContaPoupanca p ? p.diaDeAniversario(ContaService.FUSO) : null;
+            BigDecimal rendimento = c instanceof ContaPoupanca p ? p.rendimentoEstimado() : null;
+            return new ContaResposta(c.getNumero(), c.getTipo(), c.getTipo().nome(), c.getAgencia(), c.getCliente().getNome(),
                     Cpf.mascarar(c.getCliente().getCpf()), c.getSaldo(), c.getLimite(), c.disponivel(), c.usoDoLimite(),
-                    c.getSituacao(), c.getMotivoBloqueio(), c.getAbertaEm(), c.getEncerradaEm());
+                    c.getSituacao(), c.getMotivoBloqueio(), c.getAbertaEm(), c.getEncerradaEm(), aniversario, rendimento);
         }
     }
 

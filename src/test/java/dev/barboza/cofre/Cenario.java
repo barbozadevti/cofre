@@ -8,6 +8,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import dev.barboza.cofre.dominio.Cliente;
 import dev.barboza.cofre.dominio.ClienteRepository;
 import dev.barboza.cofre.dominio.Conta;
+import dev.barboza.cofre.dominio.ContaCorrente;
 import dev.barboza.cofre.dominio.Cpf;
 import dev.barboza.cofre.pix.PixService;
 import dev.barboza.cofre.pix.TipoChavePix;
@@ -50,7 +51,7 @@ public class Cenario {
         String email = nome.toLowerCase().replace(" ", ".").replaceAll("[^a-z.]", "") + "@teste.dev";
         Cliente cliente = clientes.save(new Cliente(nome, cpf, email, null, RelogioFixo.AGORA));
         Usuario usuario = usuarios.save(new Usuario(email, nome, hash(), Perfil.CLIENTE, cliente, false, RelogioFixo.AGORA));
-        Conta conta = contas.abrirPara(cliente, null, new BigDecimal(saldo), RelogioFixo.AGORA);
+        ContaCorrente conta = contas.abrirPara(cliente, null, new BigDecimal(saldo), RelogioFixo.AGORA);
         conta.definirLimite(new BigDecimal(limite));
         return new Pessoa(cliente, usuario.comoLogado(), conta);
     }

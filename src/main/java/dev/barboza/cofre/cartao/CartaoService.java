@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import dev.barboza.cofre.auditoria.Auditoria;
 import dev.barboza.cofre.dominio.Conta;
+import dev.barboza.cofre.dominio.OperacaoInvalidaException;
+import dev.barboza.cofre.dominio.ContaPoupanca;
 import dev.barboza.cofre.seguranca.UsuarioLogado;
 import dev.barboza.cofre.servico.Acesso;
 import dev.barboza.cofre.servico.ContaService;
@@ -53,6 +55,9 @@ public class CartaoService {
     public Cartao cartao(UsuarioLogado quem, String numeroConta) {
         Conta conta = contas.buscarInterno(numeroConta);
         Acesso.exigirDono(quem, conta);
+        if (conta instanceof ContaPoupanca) {
+            throw new OperacaoInvalidaException("O cartão de débito é da conta corrente.");
+        }
         return cartoes.findByContaId(conta.getId()).orElseGet(() -> emitir(conta));
     }
 

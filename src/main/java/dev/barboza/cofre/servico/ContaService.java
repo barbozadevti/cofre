@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 import dev.barboza.cofre.auditoria.Auditoria;
 import dev.barboza.cofre.dominio.Cliente;
 import dev.barboza.cofre.dominio.Conta;
+import dev.barboza.cofre.dominio.ContaCorrente;
+import dev.barboza.cofre.dominio.ContaPoupanca;
 import dev.barboza.cofre.dominio.ContaNaoEncontradaException;
 import dev.barboza.cofre.dominio.ContaRepository;
 import dev.barboza.cofre.dominio.Cpf;
@@ -27,7 +29,7 @@ import dev.barboza.cofre.dominio.RecursoNaoEncontradoException;
 import dev.barboza.cofre.dominio.TipoLancamento;
 import dev.barboza.cofre.seguranca.UsuarioLogado;
 
-/** Casos de uso de conta corrente. Site, API e terminal passam todos por aqui. */
+/** Casos de uso das contas (corrente e poupança). Site, API e terminal passam todos por aqui. */
 @Service
 public class ContaService {
 
@@ -86,11 +88,39 @@ public class ContaService {
 
     // ---------- Abertura (usada pela gerência e pelos dados de demonstração) ----------
 
+    /** Abre uma conta corrente. */
     @Transactional
-    public Conta abrirPara(Cliente cliente, String agencia, BigDecimal depositoInicial, Instant quando) {
-        int proximo = Math.max(contas.maiorNumeroBase() + 1, PRIMEIRO_NUMERO);
-        Conta.Abertura abertura = Conta.abrir(proximo, agencia, cliente, depositoInicial, quando);
-        Conta conta = contas.save(abertura.conta());
+    public ContaCorrente abrirPara(Cliente cliente, String agencia, BigDecimal depositoInicial, Instant quando) {
+        return salvar(ContaCorrente.abrir(proximoNumero(), agencia, cliente, depositoInicial, quando));
+    }
+
+    @Transactional
+    public ContaPoupanca abrirPoupancaPara(Cliente cliente, String agencia, BigDecimal depositoInicial, Instant quando) {
+        return salvar(ContaPoupanca.abrir(proximoNumero(), agencia, cliente, depositoInicial, quando));
+    }
+
+    /** O próprio cliente abre a poupança pelo app (uma por cliente), na mesma agência da conta corrente. */
+    @Transactional
+    public ContaPoupanca abrirMinhaPoupanca(UsuarioLogado quem) {
+        if (quem.clienteId() == null) {
+            throw new OperacaoInvalidaException("Só clientes abrem poupança pelo app.");
+        }
+        if (contas.poupancasAbertas(quem.clienteId()) > 0) {
+            throw new OperacaoInvalidaException("Você já tem uma conta poupança.");
+        }
+        Conta principal = contas.findByClienteIdOrderByNumeroBaseAsc(quem.clienteId()).stream().findFirst()
+                .orElseThrow(() -> new OperacaoInvalidaException("Cliente sem conta no Cofre."));
+        ContaPoupanca poupanca = abrirPoupancaPara(principal.getCliente(), principal.getAgencia(), BigDecimal.ZERO, relogio.instant());
+        auditoria.registrar(quem, "ABERTURA_POUPANCA", "Conta " + poupanca.getNumero());
+        return poupanca;
+    }
+
+    private int proximoNumero() {
+        return Math.max(contas.maiorNumeroBase() + 1, PRIMEIRO_NUMERO);
+    }
+
+    private <T extends Conta> T salvar(Conta.Abertura<T> abertura) {
+        T conta = contas.save(abertura.conta());
         lancamentos.save(abertura.lancamento());
         return conta;
     }
@@ -128,6 +158,13 @@ public class ContaService {
     }
 
     // ---------- Transferências (cliente) ----------
+
+    /** Transferência com data informada, sem checar acesso: usada pelos dados de demonstração. */
+    @Transactional
+    public String transferirEm(String origem, String destino, BigDecimal valor, String mensagem, Instant quando) {
+        return movimentar(buscarInterno(origem), buscarInterno(destino), valor, mensagem,
+                TipoLancamento.TRANSFERENCIA_ENVIADA, TipoLancamento.TRANSFERENCIA_RECEBIDA, 'T', quando, null);
+    }
 
     /** Transferência entre contas do Cofre, feita pelo dono da conta de origem. */
     @Transactional

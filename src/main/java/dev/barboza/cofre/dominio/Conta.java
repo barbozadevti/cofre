@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.regex.Pattern;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.DiscriminatorColumn;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -12,21 +13,28 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Inheritance;
+import jakarta.persistence.InheritanceType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
 /**
- * Conta corrente com cheque especial. Toda mudança de saldo passa por aqui e devolve o
- * {@link Lancamento} correspondente, então saldo e extrato nunca divergem.
+ * O que toda conta do Cofre tem em comum (abstração e herança): número, titular, saldo, situação e o extrato.
+ * Toda mudança de saldo passa por aqui e devolve o {@link Lancamento} correspondente, então saldo e extrato
+ * nunca divergem (encapsulamento). Quanto pode sair da conta depende do tipo (polimorfismo): a
+ * {@link ContaCorrente} soma o cheque especial; a {@link ContaPoupanca}, não.
+ * <p>
+ * As duas ficam na mesma tabela, diferenciadas pela coluna {@code tipo} (herança JPA em tabela única).
  */
 @Entity
 @Table(name = "conta")
-public class Conta {
+@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
+@DiscriminatorColumn(name = "tipo", length = 10)
+public abstract class Conta {
 
     public static final String AGENCIA_PADRAO = "0001";
-    public static final BigDecimal LIMITE_MAXIMO = new BigDecimal("50000.00");
 
     private static final Pattern AGENCIA = Pattern.compile("\\d{4}");
 
@@ -50,10 +58,6 @@ public class Conta {
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal saldo;
 
-    /** Limite do cheque especial: o saldo pode ficar negativo até {@code -limite}. */
-    @Column(nullable = false, precision = 15, scale = 2)
-    private BigDecimal limite;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
     private SituacaoConta situacao;
@@ -74,30 +78,34 @@ public class Conta {
     protected Conta() {
     }
 
-    private Conta(int numeroBase, String agencia, Cliente cliente, Instant abertaEm) {
+    protected Conta(int numeroBase, String agencia, Cliente cliente, Instant abertaEm) {
         this.numeroBase = numeroBase;
         this.numero = NumeroConta.formatar(numeroBase);
-        this.agencia = agencia;
+        this.agencia = validarAgencia(agencia);
         this.cliente = cliente;
         this.saldo = zero();
-        this.limite = zero();
         this.situacao = SituacaoConta.ATIVA;
         this.abertaEm = abertaEm;
     }
 
-    /** Cria a conta e devolve junto o lançamento de abertura com o depósito inicial (que pode ser zero). */
-    public static Abertura abrir(int numeroBase, String agencia, Cliente cliente, BigDecimal depositoInicial, Instant quando) {
-        Conta conta = new Conta(numeroBase, validarAgencia(agencia), cliente, quando);
+    /** Lançamento de abertura com o depósito inicial (que pode ser zero). Usado pelas fábricas das subclasses. */
+    protected static <T extends Conta> Abertura<T> abertura(T conta, BigDecimal depositoInicial, Instant quando) {
         BigDecimal valor = Dinheiro.validarValorOuZero(depositoInicial);
-        conta.exigirNaoEncerrada();
-        conta.saldo = conta.saldo.add(valor);
-        Lancamento abertura = new Lancamento(conta, TipoLancamento.ABERTURA, valor, conta.saldo, null, null, null,
+        Conta base = conta;
+        base.saldo = base.saldo.add(valor);
+        Lancamento lancamento = new Lancamento(conta, TipoLancamento.ABERTURA, valor, base.saldo, null, null, null,
                 IdTransacao.gerar('T', quando), quando);
-        return new Abertura(conta, abertura);
+        return new Abertura<>(conta, lancamento);
     }
 
-    public record Abertura(Conta conta, Lancamento lancamento) {
+    public record Abertura<T extends Conta>(T conta, Lancamento lancamento) {
     }
+
+    /** Corrente ou poupança. */
+    public abstract TipoConta getTipo();
+
+    /** Limite do cheque especial: o saldo pode ficar negativo até {@code -limite}. Zero na poupança. */
+    public abstract BigDecimal getLimite();
 
     /** Outra ponta da operação (conta e nome), para o extrato e o comprovante. */
     public record Contraparte(String numero, String nome) {
@@ -132,7 +140,7 @@ public class Conta {
         exigirAtiva();
         BigDecimal disponivel = podeUsarLimite ? disponivel() : saldo.max(zero());
         if (disponivel.compareTo(valido) < 0) {
-            throw new SaldoInsuficienteException(disponivel, valido, podeUsarLimite && limite.signum() > 0);
+            throw new SaldoInsuficienteException(disponivel, valido, podeUsarLimite && getLimite().signum() > 0);
         }
         saldo = saldo.subtract(valido);
         return lancamento(tipo, valido, contraparte, mensagem, idTransacao, quando);
@@ -144,20 +152,6 @@ public class Conta {
         exigirNaoEncerrada();
         saldo = saldo.subtract(valido);
         return lancamento(TipoLancamento.JUROS_CHEQUE_ESPECIAL, valido, null, mensagem, idTransacao, quando);
-    }
-
-    /** Define o limite do cheque especial. Não deixa baixar abaixo do que o cliente já está usando. */
-    public void definirLimite(BigDecimal novoLimite) {
-        exigirNaoEncerrada();
-        BigDecimal valor = Dinheiro.validarValorOuZero(novoLimite);
-        if (valor.compareTo(LIMITE_MAXIMO) > 0) {
-            throw new OperacaoInvalidaException("O limite máximo do cheque especial é " + Dinheiro.formatar(LIMITE_MAXIMO) + ".");
-        }
-        if (usoDoLimite().compareTo(valor) > 0) {
-            throw new OperacaoInvalidaException("O cliente está usando " + Dinheiro.formatar(usoDoLimite())
-                    + " do cheque especial; o novo limite não pode ser menor que isso.");
-        }
-        limite = valor;
     }
 
     public void bloquear(String motivo) {
@@ -189,13 +183,17 @@ public class Conta {
                     + Dinheiro.formatar(saldo) + ".");
         }
         situacao = SituacaoConta.ENCERRADA;
-        limite = zero();
         encerradaEm = quando;
+        aoEncerrar();
     }
 
-    /** Saldo + limite do cheque especial. */
+    /** Gancho para cada tipo de conta limpar o que for dela ao encerrar (a corrente zera o limite). */
+    protected void aoEncerrar() {
+    }
+
+    /** Saldo + limite do cheque especial (que é zero na poupança). */
     public BigDecimal disponivel() {
-        return saldo.add(limite);
+        return saldo.add(getLimite());
     }
 
     /** Quanto do cheque especial está em uso (zero se o saldo for positivo). */
@@ -213,7 +211,7 @@ public class Conta {
                 + ", conta " + numero + " e seu saldo " + Dinheiro.formatar(saldo) + " já está disponível para saque.";
     }
 
-    private Lancamento lancamento(TipoLancamento tipo, BigDecimal valor, Contraparte contraparte, String mensagem,
+    protected Lancamento lancamento(TipoLancamento tipo, BigDecimal valor, Contraparte contraparte, String mensagem,
             String idTransacao, Instant quando) {
         return new Lancamento(this, tipo, valor, saldo, contraparte == null ? null : contraparte.numero(),
                 contraparte == null ? null : contraparte.nome(), limparMensagem(mensagem), idTransacao, quando);
@@ -226,7 +224,7 @@ public class Conta {
         }
     }
 
-    private void exigirNaoEncerrada() {
+    protected void exigirNaoEncerrada() {
         if (situacao == SituacaoConta.ENCERRADA) {
             throw new OperacaoInvalidaException("A conta " + numero + " está encerrada.");
         }
@@ -251,7 +249,7 @@ public class Conta {
         return valor;
     }
 
-    private static BigDecimal zero() {
+    protected static BigDecimal zero() {
         return BigDecimal.ZERO.setScale(2);
     }
 
@@ -277,10 +275,6 @@ public class Conta {
 
     public BigDecimal getSaldo() {
         return saldo;
-    }
-
-    public BigDecimal getLimite() {
-        return limite;
     }
 
     public SituacaoConta getSituacao() {

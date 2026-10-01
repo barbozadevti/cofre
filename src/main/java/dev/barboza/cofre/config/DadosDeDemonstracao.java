@@ -19,6 +19,7 @@ import dev.barboza.cofre.caixinha.CaixinhaService;
 import dev.barboza.cofre.dominio.Cliente;
 import dev.barboza.cofre.dominio.ClienteRepository;
 import dev.barboza.cofre.dominio.Conta;
+import dev.barboza.cofre.dominio.ContaCorrente;
 import dev.barboza.cofre.dominio.ContaRepository;
 import dev.barboza.cofre.dominio.Cpf;
 import dev.barboza.cofre.pix.PixService;
@@ -29,10 +30,11 @@ import dev.barboza.cofre.seguranca.UsuarioLogado;
 import dev.barboza.cofre.seguranca.UsuarioRepository;
 import dev.barboza.cofre.servico.ContaService;
 import dev.barboza.cofre.servico.JurosChequeEspecial;
+import dev.barboza.cofre.servico.RendimentoPoupanca;
 
 /**
  * Na primeira execução (banco vazio), cria gerente, caixa e 6 clientes (um deles, um mercado) com 6 meses de movimentação:
- * salários, Pix, saques, caixinhas e um cliente no cheque especial. Todos com a senha {@value #SENHA}.
+ * salários, Pix, saques, caixinhas, duas poupanças rendendo todo mês e um cliente no cheque especial. Todos com a senha {@value #SENHA}.
  * Roda antes de o servidor web aceitar requisições, para o site nunca abrir vazio.
  */
 @Component
@@ -45,6 +47,7 @@ public class DadosDeDemonstracao implements SmartInitializingSingleton {
     private final PixService pix;
     private final CaixinhaService caixinhas;
     private final JurosChequeEspecial juros;
+    private final RendimentoPoupanca rendimento;
     private final ClienteRepository clientes;
     private final ContaRepository contaRepository;
     private final UsuarioRepository usuarios;
@@ -57,12 +60,13 @@ public class DadosDeDemonstracao implements SmartInitializingSingleton {
     private LocalDate hoje;
 
     public DadosDeDemonstracao(ContaService contas, PixService pix, CaixinhaService caixinhas, JurosChequeEspecial juros,
-            ClienteRepository clientes, ContaRepository contaRepository, UsuarioRepository usuarios, PasswordEncoder senhas,
+            RendimentoPoupanca rendimento, ClienteRepository clientes, ContaRepository contaRepository, UsuarioRepository usuarios, PasswordEncoder senhas,
             TransactionTemplate transacao, Clock relogio) {
         this.contas = contas;
         this.pix = pix;
         this.caixinhas = caixinhas;
         this.juros = juros;
+        this.rendimento = rendimento;
         this.clientes = clientes;
         this.contaRepository = contaRepository;
         this.usuarios = usuarios;
@@ -104,6 +108,11 @@ public class DadosDeDemonstracao implements SmartInitializingSingleton {
         chave(bia, TipoChavePix.EMAIL, "beatriz@cofre.dev");
         chave(mercado, TipoChavePix.EMAIL, "mercado@cofre.dev");
 
+        // Poupanças abertas há 6 meses, no dia 3: rendem todo dia 3 e recebem uma parte do salário no dia 6.
+        LocalDate aberturaPoupanca = hoje.minusMonths(6).withDayOfMonth(3);
+        Conta poupancaAna = poupanca(ana, "2000.00", aberturaPoupanca);
+        Conta poupancaHelena = poupanca(helena, "15000.00", aberturaPoupanca);
+
         Caixinha viagem = caixinhas.criarEm(ana, "Viagem para o Chile", new BigDecimal("12000.00"), em(190, "20:00"));
         Caixinha reserva = caixinhas.criarEm(ana, "Reserva de emergência", null, em(190, "20:01"));
         Caixinha carro = caixinhas.criarEm(mario, "Carro novo", new BigDecimal("40000.00"), em(185, "21:30"));
@@ -111,6 +120,9 @@ public class DadosDeDemonstracao implements SmartInitializingSingleton {
         // Seis meses de rotina.
         for (int mesesAtras = 5; mesesAtras >= 0; mesesAtras--) {
             LocalDate mes = hoje.minusMonths(mesesAtras).withDayOfMonth(1);
+            evento(mes, 3, "00:10", () -> rendimento.creditar(mes.withDayOfMonth(3), quando));
+            evento(mes, 6, "09:00", () -> contas.transferirEm(ana.getNumero(), poupancaAna.getNumero(), valor(300, 500), "Guardar na poupança", quando));
+            evento(mes, 6, "09:05", () -> contas.transferirEm(helena.getNumero(), poupancaHelena.getNumero(), new BigDecimal("1000.00"), "Reserva mensal", quando));
             evento(mes, 2, "10:15", () -> contas.depositarEm(helena.getNumero(), valor(9000, 12500), "Depósito de vendas", quando));
             evento(mes, 5, "08:00", () -> pix.enviarEm(helena.getNumero(), "mario@cofre.dev", new BigDecimal("5200.00"), "Salário", quando));
             evento(mes, 5, "08:01", () -> pix.enviarEm(helena.getNumero(), "joao@cofre.dev", new BigDecimal("3200.00"), "Salário", quando));
@@ -155,10 +167,16 @@ public class DadosDeDemonstracao implements SmartInitializingSingleton {
         return transacao.execute(status -> {
             Cliente cliente = clientes.save(new Cliente(nome, Cpf.completar(noveDigitos), email, telefone, quando));
             usuarios.save(new Usuario(email, nome, hash, Perfil.CLIENTE, cliente, false, quando));
-            Conta conta = contas.abrirPara(cliente, agencia, new BigDecimal(deposito), quando);
+            ContaCorrente conta = contas.abrirPara(cliente, agencia, new BigDecimal(deposito), quando);
             conta.definirLimite(new BigDecimal(limite));
             return conta;
         });
+    }
+
+    private Conta poupanca(Conta corrente, String deposito, LocalDate dia) {
+        Instant quando = dia.atTime(LocalTime.parse("11:00")).atZone(ContaService.FUSO).toInstant();
+        return transacao.execute(status -> contas.abrirPoupancaPara(corrente.getCliente(), corrente.getAgencia(),
+                new BigDecimal(deposito), quando));
     }
 
     private void chave(Conta conta, TipoChavePix tipo, String valor) {
