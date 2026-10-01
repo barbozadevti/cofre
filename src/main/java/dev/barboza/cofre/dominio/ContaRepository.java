@@ -42,6 +42,22 @@ public interface ContaRepository extends JpaRepository<Conta, Long> {
     @Query("select count(c) from ContaCorrente c where c.escudoAtivo = true")
     long contasComEscudo();
 
+    @Query("select coalesce(sum(c.saldo), 0) from ContaCorrente c where c.saldo > 0")
+    BigDecimal custodiaEmContaCorrente();
+
+    @Query("select coalesce(sum(p.saldo), 0) from ContaPoupanca p")
+    BigDecimal custodiaEmPoupanca();
+
+    @Query("select count(p) from ContaPoupanca p where p.situacao <> dev.barboza.cofre.dominio.SituacaoConta.ENCERRADA")
+    long poupancasAtivas();
+
+    @Query("select count(c) from ContaCorrente c where c.saldo < 0")
+    long correntesNoNegativo();
+
+    /** Saldo positivo de cada cliente, do maior para o menor (concentração da carteira). */
+    @Query("select c.cliente.nome, sum(c.saldo) from Conta c where c.saldo > 0 group by c.cliente.id, c.cliente.nome order by sum(c.saldo) desc")
+    List<Object[]> saldoPorCliente();
+
     @Query("select count(p) from ContaPoupanca p where p.cliente.id = :clienteId and p.situacao <> dev.barboza.cofre.dominio.SituacaoConta.ENCERRADA")
     long poupancasAbertas(@Param("clienteId") Long clienteId);
 

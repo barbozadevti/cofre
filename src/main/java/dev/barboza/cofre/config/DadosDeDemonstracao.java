@@ -92,6 +92,7 @@ public class DadosDeDemonstracao implements SmartInitializingSingleton {
         Instant inicio = em(200, "09:00");
         usuarios.save(new Usuario("gerente@cofre.dev", "Carla Mendes", hash, Perfil.GERENTE, null, false, inicio));
         usuarios.save(new Usuario("caixa@cofre.dev", "Antônio Ribeiro", hash, Perfil.CAIXA, null, false, inicio));
+        usuarios.save(new Usuario("diretoria@cofre.dev", "Ricardo Almeida", hash, Perfil.DIRETORIA, null, false, inicio));
 
         Conta helena = cliente("Helena Prado", "418273645", "helena@cofre.dev", "11991234567", "0412", "48000.00", "0", 199);
         Conta mario = cliente("Mario Andrade", "529982247", "mario@cofre.dev", "11987654321", "0678", "237.48", "2000.00", 198);
@@ -178,6 +179,12 @@ public class DadosDeDemonstracao implements SmartInitializingSingleton {
         pix.enviarEm(mario.getNumero(), "helena@cofre.dev", saldoMario.max(BigDecimal.ZERO).add(new BigDecimal("380.00")),
                 "Seguro do carro", em(0, "07:30"));
 
+        // Antifraude em ação: Ana tenta mandar um valor muito acima do costume para quem nunca pagou (retido e não
+        // confirmado); Helena manda um valor alto para um destinatário novo e confirma.
+        tentarPix(ana, "joao@cofre.dev", "2500.00", false);
+        tentarPix(helena, "beatriz@cofre.dev", "12000.00", false);
+        tentarPix(helena, "beatriz@cofre.dev", "12000.00", true);
+
         // João termina usando o cheque especial, com juros cobrados nos últimos dias.
         BigDecimal saldoJoao = contaRepository.findByNumero(joao.getNumero()).orElseThrow().getSaldo();
         BigDecimal ateONegativo = saldoJoao.add(new BigDecimal("412.37"));
@@ -199,6 +206,15 @@ public class DadosDeDemonstracao implements SmartInitializingSingleton {
             conta.definirLimite(new BigDecimal(limite));
             return conta;
         });
+    }
+
+    private void tentarPix(Conta origem, String chave, String valor, boolean confirmar) {
+        UsuarioLogado dono = usuarios.findByClienteId(origem.getCliente().getId()).orElseThrow().comoLogado();
+        try {
+            pix.enviar(dono, origem.getNumero(), chave, new BigDecimal(valor), null, null, confirmar);
+        } catch (RuntimeException e) {
+            // retido pelo antifraude: fica registrado na auditoria, que é o que a demonstração precisa
+        }
     }
 
     private Conta poupanca(Conta corrente, String deposito, LocalDate dia) {

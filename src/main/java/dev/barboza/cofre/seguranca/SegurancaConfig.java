@@ -47,6 +47,7 @@ public class SegurancaConfig {
                                 "/health", "/health/**", "/api/auth/entrar", "/api/auth/csrf",
                                 "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/gerencia/**").hasRole(Perfil.GERENTE.name())
+                        .requestMatchers("/api/diretoria/**").hasRole(Perfil.DIRETORIA.name())
                         .requestMatchers("/api/agencia/**").hasAnyRole(Perfil.CAIXA.name(), Perfil.GERENTE.name())
                         .requestMatchers("/api/app/**", "/api/pix/**", "/api/caixinhas/**", "/api/cartao/**")
                         .hasRole(Perfil.CLIENTE.name())
