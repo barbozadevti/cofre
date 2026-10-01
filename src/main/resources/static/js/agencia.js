@@ -4,8 +4,8 @@ import { $, $$, abrirModal, avisar, avisarErro, escapar, fecharModal, icone, ler
 
 export function linhaDeConta(c) {
   return `<tr class="clicavel" data-numero="${c.numero}" tabindex="0">
-      <td class="mono">${c.numero}</td><td>${escapar(c.titular)}</td><td class="mono suave">${escapar(c.cpfMascarado)}</td>
-      <td class="direita ${Number(c.saldo) < 0 ? "saida" : ""}">${moeda(c.saldo)}</td><td class="direita">${moeda(c.limite)}</td>
+      <td class="mono">${c.numero}${c.tipo === "POUPANCA" ? ` <span class="etiqueta">poupança</span>` : ""}</td><td>${escapar(c.titular)}</td><td class="mono suave">${escapar(c.cpfMascarado)}</td>
+      <td class="direita ${Number(c.saldo) < 0 ? "saida" : ""}">${moeda(c.saldo)}</td><td class="direita">${c.tipo === "POUPANCA" ? "—" : moeda(c.limite)}</td>
       <td><span class="situacao ${c.situacao}">${c.situacao.toLowerCase()}</span></td></tr>`;
 }
 

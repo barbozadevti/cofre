@@ -375,3 +375,18 @@ body.privado .sensivel { filter: blur(9px); user-select: none; }
   dialog { position: absolute; inset: 0; border: 0; box-shadow: none; background: #fff; color: #000; width: 100%; }
   dialog .botao, dialog .icone-botao { display: none; }
 }
+
+/* ---------- Poupança ---------- */
+.destaque-poupanca {
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgb(74 222 128 / 12%), transparent 60%),
+    var(--superficie);
+  border-color: rgb(74 222 128 / 25%);
+}
+.etiqueta {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 600;
+  color: var(--entrada); background: rgb(74 222 128 / 12%);
+}
+.valor-medio { font-size: 26px; font-weight: 700; letter-spacing: -.01em; }

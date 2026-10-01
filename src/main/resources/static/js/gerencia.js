@@ -63,14 +63,17 @@ async function gerir(numero, atualizarLista) {
   const c = await api("/api/agencia/contas/" + numero);
   const ativa = c.situacao !== "ENCERRADA";
   const corpo = abrirModal(c.titular, `<div class="formulario">
-      <p class="suave">Ag. ${c.agencia} · Conta ${c.numero} · CPF ${escapar(c.cpfMascarado)} · <span class="situacao ${c.situacao}">${c.situacao.toLowerCase()}</span></p>
+      <p class="suave">${c.tipoNome} · Ag. ${c.agencia} · Conta ${c.numero} · CPF ${escapar(c.cpfMascarado)} · <span class="situacao ${c.situacao}">${c.situacao.toLowerCase()}</span></p>
       <div class="grade-3"><div class="kpi"><small>Saldo</small><strong class="${Number(c.saldo) < 0 ? "saida" : ""}">${moeda(c.saldo)}</strong></div>
-        <div class="kpi"><small>Limite</small><strong>${moeda(c.limite)}</strong></div>
-        <div class="kpi"><small>Em uso</small><strong>${moeda(c.usoDoLimite)}</strong></div></div>
+        ${c.tipo === "POUPANCA"
+          ? `<div class="kpi"><small>Próximo rendimento</small><strong>${moeda(c.rendimentoEstimado)}</strong></div>
+             <div class="kpi"><small>Aniversário</small><strong>dia ${c.diaDeAniversario}</strong></div></div>`
+          : `<div class="kpi"><small>Limite</small><strong>${moeda(c.limite)}</strong></div>
+             <div class="kpi"><small>Em uso</small><strong>${moeda(c.usoDoLimite)}</strong></div></div>`}
       ${c.motivoBloqueio ? `<p class="saida">Motivo do bloqueio: ${escapar(c.motivoBloqueio)}</p>` : ""}
-      ${ativa ? `<form class="linha-campos" data-limite><label class="campo"><span>Limite do cheque especial</span>
+      ${ativa ? `${c.tipo === "POUPANCA" ? "" : `<form class="linha-campos" data-limite><label class="campo"><span>Limite do cheque especial</span>
           <input name="limite" inputmode="decimal" value="${Number(c.limite).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}"></label>
-          <div class="acoes"><button class="botao primario" type="submit">Salvar limite</button></div></form>
+          <div class="acoes"><button class="botao primario" type="submit">Salvar limite</button></div></form>`}
         <div class="acoes">
           ${c.situacao === "BLOQUEADA" ? `<button class="botao" data-desbloquear>${icone("cadeado")} Desbloquear</button>`
             : `<button class="botao" data-bloquear>${icone("cadeado")} Bloquear</button>`}
@@ -90,7 +93,7 @@ async function gerir(numero, atualizarLista) {
     }
   };
   if (!ativa) return;
-  $("[data-limite]", corpo).addEventListener("submit", (e) => {
+  $("[data-limite]", corpo)?.addEventListener("submit", (e) => {
     e.preventDefault();
     const limite = lerValor(e.target.limite.value);
     if (Number.isNaN(limite)) {

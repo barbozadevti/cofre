@@ -22,7 +22,7 @@ function parametro(nome) {
 function seletorDeConta(contas) {
   if (contas.length < 2) return "";
   return `<label class="campo"><span>Conta</span><select data-conta>${contas.map((c) =>
-    `<option value="${c.numero}" ${c.numero === contaAtual ? "selected" : ""}>Ag. ${c.agencia} · ${c.numero}</option>`).join("")}</select></label>`;
+    `<option value="${c.numero}" ${c.numero === contaAtual ? "selected" : ""}>${c.tipo === "POUPANCA" ? "Poupança" : "Corrente"} · ${c.numero}</option>`).join("")}</select></label>`;
 }
 
 function ligarSeletorDeConta(raiz, recarregar) {
@@ -46,8 +46,11 @@ function ligarComprovantes(raiz) {
 
 export async function inicio(principal, ctx) {
   const painel = await api("/api/app/painel");
-  await minhasContas();
+  const contas = await minhasContas();
   const conta = painel.contas.find((c) => c.numero === contaAtual) || painel.contas[0];
+  const corrente = contas.find((c) => c.tipo === "CORRENTE");
+  const poupanca = contas.find((c) => c.tipo === "POUPANCA");
+  const ehPoupanca = conta.tipo === "POUPANCA";
   const ultimos = await api(`/api/app/contas/${conta.numero}/ultimos`);
   const primeiroNome = painel.nome.split(" ")[0];
   const uso = Number(conta.usoDoLimite);
@@ -56,17 +59,19 @@ export async function inicio(principal, ctx) {
   const saudacao = hora < 5 ? "Boa noite" : hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
 
   principal.innerHTML = `
-    <div class="topo"><div><h1>${saudacao}, ${escapar(primeiroNome)}</h1><p>Ag. ${conta.agencia} · Conta ${conta.numero}</p></div>
-      <div class="topo-acoes">${botaoPrivacidade()}</div></div>
+    <div class="topo"><div><h1>${saudacao}, ${escapar(primeiroNome)}</h1><p>${conta.tipoNome} · Ag. ${conta.agencia} · Conta ${conta.numero}</p></div>
+      <div class="topo-acoes">${seletorDeConta(contas)}${botaoPrivacidade()}</div></div>
     <div class="grade-2">
       <div class="grade">
         <section class="saldo-principal">
-          <span class="rotulo">Saldo em conta</span>
+          <span class="rotulo">${ehPoupanca ? "Saldo na poupança" : "Saldo em conta"}</span>
           <div class="valor sensivel ${Number(conta.saldo) < 0 ? "saida" : ""}">${moeda(conta.saldo)}</div>
           <span class="suave">Disponível para usar: <span class="sensivel">${moeda(conta.disponivel)}</span></span>
           <div class="detalhes">
             <span>Guardado em caixinhas<strong class="sensivel">${moeda(painel.emCaixinhas)}</strong></span>
-            <span>Cheque especial<strong class="sensivel">${moeda(limite)}</strong></span>
+            ${ehPoupanca
+              ? `<span>Próximo rendimento<strong class="sensivel">${moeda(conta.rendimentoEstimado)}</strong></span>`
+              : `<span>Cheque especial<strong class="sensivel">${moeda(limite)}</strong></span>`}
           </div>
         </section>
         <nav class="atalhos" aria-label="Atalhos">
@@ -75,7 +80,7 @@ export async function inicio(principal, ctx) {
           <a class="atalho" href="#/pix?aba=colar"><span class="circulo">${icone("colar")}</span>Copia e cola</a>
           <button class="atalho" type="button" data-transferir><span class="circulo">${icone("transferir")}</span>Transferir</button>
           <a class="atalho" href="#/caixinhas"><span class="circulo">${icone("caixinha")}</span>Caixinhas</a>
-          <a class="atalho" href="#/cartao"><span class="circulo">${icone("cartao")}</span>Cartão</a>
+          ${ehPoupanca ? "" : `<a class="atalho" href="#/cartao"><span class="circulo">${icone("cartao")}</span>Cartão</a>`}
         </nav>
         <section class="bloco">
           <div class="bloco-topo"><h2>Entradas e saídas</h2>
@@ -84,7 +89,8 @@ export async function inicio(principal, ctx) {
         </section>
       </div>
       <div class="grade">
-        <section class="bloco">
+        ${blocoPoupanca(conta, corrente, poupanca)}
+        <section class="bloco" ${ehPoupanca ? "hidden" : ""}>
           <div class="bloco-topo"><h2>Cheque especial</h2><span class="suave sensivel">${moeda(uso)} de ${moeda(limite)}</span></div>
           <div class="medidor ${uso > 0 ? "alerta" : ""}" data-medidor="${limite > 0 ? Math.min(100, (uso / limite) * 100) : 0}"><span></span></div>
           <p class="suave espaco-topo">${uso > 0
@@ -99,7 +105,87 @@ export async function inicio(principal, ctx) {
     </div>`;
   $$("[data-medidor]", principal).forEach((m) => { $("span", m).style.width = m.dataset.medidor + "%"; });
   ligarComprovantes(principal);
+  ligarSeletorDeConta(principal, ctx.recarregar);
   $("[data-transferir]", principal).addEventListener("click", () => transferir(ctx));
+  $("[data-abrir-poupanca]", principal)?.addEventListener("click", async (e) => {
+    e.currentTarget.disabled = true;
+    try {
+      const nova = await api("/api/app/poupanca", { metodo: "POST" });
+      contaAtual = nova.numero;
+      avisar(`Poupança ${nova.numero} aberta. Ela rende 0,5% ao mês, todo dia ${nova.diaDeAniversario}.`);
+      ctx.recarregar();
+    } catch (erro) {
+      avisarErro(erro);
+      e.currentTarget.disabled = false;
+    }
+  });
+  $$("[data-mover]", principal).forEach((b) => b.addEventListener("click", () => {
+    const [origem, destino] = b.dataset.mover.split(">");
+    moverEntreContas(origem, destino, b.dataset.titulo, ctx);
+  }));
+  $("[data-ver-poupanca]", principal)?.addEventListener("click", () => { contaAtual = poupanca.numero; ctx.recarregar(); });
+}
+
+/** Na corrente: convite para abrir a poupança ou atalho para guardar. Na poupança: rendimento e resgate. */
+function blocoPoupanca(conta, corrente, poupanca) {
+  if (!corrente) return "";
+  if (!poupanca) {
+    return `<section class="bloco destaque-poupanca">
+      <div class="bloco-topo"><h2>Poupança</h2><span class="etiqueta">0,5% ao mês</span></div>
+      <p class="suave">Separe uma reserva que rende todo mês, no dia em que a conta foi aberta. Sem tarifa e com resgate na hora.</p>
+      <div class="acoes espaco-topo"><button class="botao primario" type="button" data-abrir-poupanca>${icone("novo")} Abrir minha poupança</button></div>
+    </section>`;
+  }
+  if (conta.tipo === "POUPANCA") {
+    return `<section class="bloco destaque-poupanca">
+      <div class="bloco-topo"><h2>Rendimento</h2><span class="etiqueta">todo dia ${conta.diaDeAniversario}</span></div>
+      <p class="sensivel"><strong class="valor-medio">${moeda(conta.rendimentoEstimado)}</strong> <span class="suave">previstos no próximo aniversário</span></p>
+      <p class="suave espaco-topo">A poupança rende 0,5% ao mês sobre o saldo e não tem cheque especial: o disponível é só o saldo.</p>
+      <div class="acoes espaco-topo">
+        <button class="botao primario" type="button" data-mover="${corrente.numero}>${conta.numero}" data-titulo="Guardar na poupança">${icone("caixinha")} Guardar</button>
+        <button class="botao" type="button" data-mover="${conta.numero}>${corrente.numero}" data-titulo="Resgatar para a conta corrente">${icone("transferir")} Resgatar</button>
+      </div>
+    </section>`;
+  }
+  return `<section class="bloco destaque-poupanca">
+    <div class="bloco-topo"><h2>Sua poupança</h2><span class="etiqueta">rende dia ${poupanca.diaDeAniversario}</span></div>
+    <p class="sensivel"><strong class="valor-medio">${moeda(poupanca.saldo)}</strong> <span class="suave">· próximo rendimento ${moeda(poupanca.rendimentoEstimado)}</span></p>
+    <div class="acoes espaco-topo">
+      <button class="botao primario" type="button" data-mover="${conta.numero}>${poupanca.numero}" data-titulo="Guardar na poupança">${icone("caixinha")} Guardar</button>
+      <button class="botao fantasma" type="button" data-ver-poupanca>Ver poupança</button>
+    </div>
+  </section>`;
+}
+
+/** Guardar na poupança ou resgatar: uma transferência entre as próprias contas. */
+function moverEntreContas(origem, destino, titulo, ctx) {
+  const chave = novaChaveDeIdempotencia();
+  const corpo = abrirModal(titulo, `<form class="formulario" novalidate>
+      <label class="campo valor-grande"><span>Valor</span><input name="valor" inputmode="decimal" placeholder="0,00" autocomplete="off" autofocus></label>
+      <p class="erro-form" hidden></p>
+      <div class="acoes"><button class="botao primario" type="submit">Confirmar</button></div></form>`);
+  const form = $("form", corpo);
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const erro = $(".erro-form", form);
+    erro.hidden = true;
+    const valor = lerValor(form.valor.value);
+    if (!(valor > 0)) {
+      erro.textContent = "Digite um valor maior que zero, por exemplo 150,75.";
+      erro.hidden = false;
+      return;
+    }
+    try {
+      await api("/api/app/transferencias", { metodo: "POST", cabecalhos: { "Idempotency-Key": chave },
+        corpo: { origem, destino, valor, mensagem: titulo } });
+      fecharModal();
+      avisar(`${titulo}: ${moeda(valor)}.`);
+      ctx.recarregar();
+    } catch (falha) {
+      erro.textContent = falha.message;
+      erro.hidden = false;
+    }
+  });
 }
 
 /** Transferência entre contas do Cofre, pelo número da conta. */
