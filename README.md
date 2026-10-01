@@ -5,20 +5,20 @@
 <h1 align="center">Cofre</h1>
 
 <p align="center">
-  <b>Banco digital completo em Java 21 + Spring Boot 4</b><br>
-  Pix com QR Code (BR Code), cheque especial com juros diários, caixinhas, cartão virtual com CVV dinâmico<br>
-  e um backoffice com perfis de <b>cliente</b>, <b>caixa</b> e <b>gerente</b>.
+  <b>O banco que avisa antes do aperto e protege o cliente dos juros e dos golpes.</b><br>
+  Banco digital em Java 21 + Spring Boot 4 com orientação a objetos: corrente e poupança, Pix com QR Code (BR Code),<br>
+  Copiloto financeiro, Escudo de juros, antifraude explicável, portabilidade de salário e uma visão executiva para a diretoria.
 </p>
 
 <p align="center">
   <a href="https://github.com/barbozadevti/cofre/actions/workflows/ci.yml"><img src="https://github.com/barbozadevti/cofre/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/Java-21-d9b56d" alt="Java 21">
   <img src="https://img.shields.io/badge/Spring_Boot-4.1-d9b56d" alt="Spring Boot 4.1">
-  <img src="https://img.shields.io/badge/testes-114-d9b56d" alt="114 testes">
+  <img src="https://img.shields.io/badge/testes-144-d9b56d" alt="144 testes">
   <img src="https://img.shields.io/badge/PostgreSQL%20%7C%20H2-Flyway-d9b56d" alt="PostgreSQL e H2 com Flyway">
 </p>
 
-![Tela inicial do cliente](docs/telas/02-inicio.png)
+![Copiloto financeiro e Escudo de juros na tela inicial do cliente](docs/telas/02-inicio.png)
 
 ## Experimente em 1 minuto
 
@@ -34,8 +34,44 @@ Abra **http://localhost:5230** e use os botões de demonstração da tela de log
 | Cliente no limite | `joao@cofre.dev` | Cheque especial em uso e juros cobrados por dia |
 | Caixa | `caixa@cofre.dev` | Depósito e saque em espécie no balcão |
 | Gerente | `gerente@cofre.dev` | Indicadores, abertura de conta, limites, bloqueios e auditoria |
+| Salário portado | `beatriz@cofre.dev` | Portabilidade de salário concluída e Pague-se primeiro |
+| **Diretoria (CEO)** | `diretoria@cofre.dev` | Visão executiva: custódia, margem, crédito, fraude, Escudo e concentração |
 
 Sem Docker: `mvn spring-boot:run` (JDK 21 + Maven; o banco H2 é criado em `~/.cofre`). No Windows, o atalho `Abrir Cofre.cmd` faz tudo e abre o navegador. A documentação interativa da API fica em **/swagger-ui.html**.
+
+## O diferencial: um banco do lado do cliente
+
+Bancos costumam ganhar dinheiro com o descuido do cliente: o cheque especial de 8% ao mês cobrado de quem tem dinheiro
+parado na poupança, o golpe que só é percebido depois. O Cofre faz o contrário, e mostra para a diretoria quanto isso custa e quanto rende.
+
+| | O que faz | Como funciona |
+|---|---|---|
+| **Copiloto** | Prevê o saldo dos próximos 30 dias e avisa *antes* de a conta ficar negativa | Reconhece o que se repete todo mês (salário, aluguel, escola) nos últimos 3 meses e projeta. É uma função pura, testada com números calculados à mão |
+| **Escudo de juros** | Se a corrente ficaria negativa, a poupança do cliente cobre na hora, sem juros | Roda na mesma transação do Pix, saque ou transferência, e de novo na rotina diária antes dos juros. Mostra a economia: 8% de juros evitados − 0,5% que a poupança deixou de render |
+| **Antifraude explicável** | Pix com cara de golpe não sai sem confirmação | Nota de 0 a 100 com os motivos: destinatário novo, valor 3× acima da média, madrugada, conta de destino recém-aberta, rajada de envios, Pix que esvazia a conta. Responde HTTP 428; a retenção fica na auditoria |
+| **Traga seu salário** | Portabilidade de salário com linha do tempo | Pedido simulado, andamento calculado pelo relógio (sem rotina para "mudar status") e salário creditado no dia do pagamento, de forma idempotente |
+| **Pague-se primeiro** | Uma porcentagem de cada salário vai para a poupança assim que cai | Vale para o salário portado e para Pix com "salário" na mensagem |
+| **Visão executiva** | O banco inteiro em uma tela, para a diretoria | Perfil próprio (só leitura): custódia, margem de juros, carteira de crédito, Pix, golpes evitados, custo do Escudo, salários trazidos, concentração e uma leitura em texto |
+
+Uma nota honesta: bancos nos Estados Unidos oferecem transferência automática da poupança para cobrir saldo negativo,
+geralmente com tarifa. O diferencial do Cofre é a combinação: **prever antes, proteger de graça e mostrar ao cliente quanto ele economizou**.
+
+<table>
+  <tr>
+    <td><img src="docs/telas/18-copiloto.png" alt="Copiloto: previsão de saldo e Escudo de juros"></td>
+    <td><img src="docs/telas/19-antifraude.png" alt="Antifraude: nota de risco 80 com os motivos"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/telas/20-salario.png" alt="Traga seu salário: portabilidade concluída e Pague-se primeiro"></td>
+    <td><img src="docs/telas/21-salario-em-analise.png" alt="Portabilidade em análise com linha do tempo"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/telas/22-diretoria.png" alt="Visão executiva da diretoria"></td>
+    <td><img src="docs/telas/23-diretoria-riscos.png" alt="Visão executiva: crédito, antifraude, Escudo e concentração"></td>
+  </tr>
+</table>
+
+<p align="center"><img src="docs/telas/24-celular-copiloto.png" alt="Copiloto no celular" width="260"></p>
 
 ## O que tem dentro
 
@@ -179,7 +215,10 @@ flowchart LR
 src/main/java/dev/barboza/cofre/
 ├── dominio/     Conta (abstrata), ContaCorrente, ContaPoupanca, Lancamento, Cliente, Dinheiro, Cpf, NumeroConta
 ├── servico/     ContaService, GerenciaService, PainelService, JurosChequeEspecial, RendimentoPoupanca, Acesso
-├── pix/         PixService, ChavePix, BrCode (EMV + CRC16), QrCodeSvg
+├── copiloto/    PrevisaoDeSaldo (função pura) e CopilotoService (Escudo de juros)
+├── salario/     Portabilidade de salário, CNPJ, Pague-se primeiro
+├── diretoria/   Visão executiva
+├── pix/         PixService, RiscoPix (antifraude), ChavePix, BrCode (EMV + CRC16), QrCodeSvg
 ├── caixinha/    Caixinha e serviço
 ├── cartao/      Cartão virtual, Luhn e CVV dinâmico
 ├── seguranca/   Usuário, perfis, login com bloqueio, Spring Security
@@ -198,7 +237,7 @@ src/main/resources/
 mvn verify
 ```
 
-**114 testes**, rodando com o idioma da máquina em português para pegar qualquer formatação que dependa dele. No CI, a mesma bateria roda também contra o **PostgreSQL**, e um terceiro job sobe o **Docker Compose** e faz login de verdade.
+**144 testes**, rodando com o idioma da máquina em português para pegar qualquer formatação que dependa dele. No CI, a mesma bateria roda também contra o **PostgreSQL**, e um terceiro job sobe o **Docker Compose** e faz login de verdade.
 
 | Área | Exemplos do que é verificado |
 |---|---|
@@ -210,13 +249,17 @@ mvn verify
 | API | Login real com sessão, idempotência do Pix, `problem+json`, CSV byte a byte |
 | Concorrência | 20 saques simultâneos na mesma conta |
 | Terminal | Roteiros de caixa e gerente, abertura com as perguntas do desafio original |
-| Demonstração | Seis meses de histórico, duas poupanças rendendo todo mês e um cliente no cheque especial com juros |
+| Copiloto e Escudo | Recorrências reconhecidas só quando se repetem no mesmo período do mês, dia 31 em mês de 30 dias, cobertura na hora, cobertura parcial, nunca desfaz o "guardar", rotina diária |
+| Antifraude | Cada fator da nota com o peso certo, Pix retido não debita e fica auditado, confirmado sai |
+| Salário | CNPJ, andamento pelo tempo, cancelamento, crédito no dia certo uma vez por mês, Pague-se primeiro |
+| Visão executiva | Os números fecham (custódia, margem) e só a diretoria vê |
+| Demonstração | Seis meses de histórico, poupanças rendendo, Escudo em ação, salário portado e um cliente no cheque especial com juros |
 
 Os valores esperados de CPF, dígito verificador e BR Code vêm de fontes independentes (documentação do Banco Central e uma implementação separada), não do próprio código testado.
 
 ## API
 
-40 rotas, documentadas em `/swagger-ui.html`. Os erros seguem a RFC 9457 (`application/problem+json`), em português:
+51 rotas, documentadas em `/swagger-ui.html`. Os erros seguem a RFC 9457 (`application/problem+json`), em português:
 
 | Situação | Status |
 |---|---|
@@ -226,9 +269,10 @@ Os valores esperados de CPF, dígito verificador e BR Code vêm de fontes indepe
 | Duas operações simultâneas na mesma conta | 409 |
 | Acesso bloqueado por tentativas | 423 |
 | Regra de negócio (saldo, limite do Pix, conta bloqueada...) | 422 |
+| Pix com nota de risco alta: precisa de confirmação (`X-Confirmacao-Risco: confirmo`) | 428 |
 
 ![Swagger](docs/telas/15-swagger.png)
 
 ## Produto
 
-As decisões de escopo e a ordem das entregas estão na [Lean Inception](docs/lean-inception.md). Das nove ondas planejadas, oito já foram entregues.
+As decisões de escopo e a ordem das entregas estão na [Lean Inception](docs/lean-inception.md). A segunda rodada (ondas 9 a 12: Copiloto, antifraude, visão executiva e salário) partiu da pergunta "o que um CEO de banco olharia?". A próxima onda é empréstimo pessoal com CET e tabela Price, a alavanca de receita que a própria visão executiva aponta.

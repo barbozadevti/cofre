@@ -172,8 +172,7 @@ public class DiretoriaService {
     /** Frases curtas que um diretor leria primeiro: o que está bom, o que pede atenção. */
     private static List<Leitura> leituras(Custodia c, Resultado r, Credito cr, Antifraude a, Escudo e, Salario s, Concentracao k) {
         List<Leitura> l = new ArrayList<>();
-        l.add(new Leitura("neutro", "Custódia de " + Dinheiro.formatar(c.total()) + ", com " + percentual(c.poupanca(), c.total())
-                + "% em poupança."));
+        l.add(new Leitura("neutro", "Custódia de " + Dinheiro.formatar(c.total()) + ", com " + pct(percentual(c.poupanca(), c.total())) + "% em poupança."));
         l.add(new Leitura(r.margem().signum() >= 0 ? "bom" : "atencao", "Nos últimos 30 dias, os juros do cheque especial renderam "
                 + Dinheiro.formatar(r.receitaDeJuros()) + " e a poupança custou " + Dinheiro.formatar(r.custoDoRendimento()) + "."));
         if (r.margem().signum() < 0) {
@@ -181,7 +180,7 @@ public class DiretoriaService {
                     + "Empréstimo pessoal com CET claro é a próxima alavanca de receita (próxima onda da Lean Inception)."));
         }
         if (cr.utilizacao().compareTo(new BigDecimal("40")) > 0) {
-            l.add(new Leitura("atencao", "Utilização do cheque especial em " + cr.utilizacao() + "% do limite concedido."));
+            l.add(new Leitura("atencao", "Utilização do cheque especial em " + pct(cr.utilizacao()) + "% do limite concedido."));
         }
         if (e.valorCoberto().signum() > 0) {
             l.add(new Leitura("bom", "O Escudo cobriu " + Dinheiro.formatar(e.valorCoberto()) + " de saldo negativo: cerca de "
@@ -196,9 +195,13 @@ public class DiretoriaService {
                     + Dinheiro.formatar(s.folhaMensal()) + "."));
         }
         if (k.top5().compareTo(new BigDecimal("50")) > 0) {
-            l.add(new Leitura("atencao", "Concentração: os 5 maiores clientes têm " + k.top5() + "% da custódia."));
+            l.add(new Leitura("atencao", "Concentração: os 5 maiores clientes têm " + pct(k.top5()) + "% da custódia."));
         }
         return l;
+    }
+
+    private static String pct(BigDecimal valor) {
+        return valor.stripTrailingZeros().toPlainString().replace('.', ',');
     }
 
     private BigDecimal soma(TipoLancamento tipo, Instant de, Instant ate) {
