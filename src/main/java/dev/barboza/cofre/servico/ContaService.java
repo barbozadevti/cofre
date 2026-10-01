@@ -154,6 +154,7 @@ public class ContaService {
     public Conta sacarEm(String numero, BigDecimal valor, String mensagem, Instant quando) {
         Conta conta = buscarInterno(numero);
         lancamentos.save(conta.debitar(TipoLancamento.SAQUE, valor, null, mensagem, IdTransacao.gerar('T', quando), quando, true));
+        cobrirComEscudo(conta, quando, null);
         return conta;
     }
 
@@ -200,7 +201,42 @@ public class ContaService {
         enviado.marcarIdempotencia(chaveIdempotencia);
         Lancamento recebido = destino.creditar(entrada, valor, Conta.Contraparte.de(origem), mensagem, id, quando);
         lancamentos.saveAll(List.of(enviado, recebido));
+        cobrirComEscudo(origem, quando, destino);
         return id;
+    }
+
+    /**
+     * Escudo de juros: se a conta corrente ficou negativa e o cliente ligou o Escudo, traz da poupança dele
+     * o que falta para zerar, na mesma transação da operação. Nunca tira da conta que acabou de receber
+     * (ex.: guardar na poupança usando o limite não é desfeito). Devolve o valor coberto.
+     */
+    @Transactional
+    public BigDecimal cobrirComEscudo(Conta conta, Instant quando, Conta exceto) {
+        BigDecimal coberto = BigDecimal.ZERO.setScale(2);
+        if (!(conta instanceof ContaCorrente corrente) || !corrente.isEscudoAtivo() || corrente.getSaldo().signum() >= 0) {
+            return coberto;
+        }
+        for (ContaPoupanca poupanca : contas.poupancasAtivasDoCliente(corrente.getCliente().getId())) {
+            BigDecimal falta = corrente.faltaParaZerar();
+            if (falta.signum() == 0) {
+                break;
+            }
+            if (exceto != null && poupanca.getNumero().equals(exceto.getNumero())) {
+                continue;
+            }
+            BigDecimal valor = falta.min(poupanca.getSaldo());
+            if (valor.signum() <= 0) {
+                continue;
+            }
+            String id = IdTransacao.gerar('S', quando);
+            Lancamento resgate = poupanca.debitar(TipoLancamento.ESCUDO_RESGATE, valor, Conta.Contraparte.de(corrente),
+                    "Cobertura automática do saldo negativo", id, quando, false);
+            Lancamento cobertura = corrente.creditar(TipoLancamento.ESCUDO_COBERTURA, valor, Conta.Contraparte.de(poupanca),
+                    "Cobertura automática do saldo negativo", id, quando);
+            lancamentos.saveAll(List.of(resgate, cobertura));
+            coberto = coberto.add(valor);
+        }
+        return coberto;
     }
 
     /** Se o cliente reenviar a mesma operação (mesma Idempotency-Key), devolve o comprovante da primeira. */

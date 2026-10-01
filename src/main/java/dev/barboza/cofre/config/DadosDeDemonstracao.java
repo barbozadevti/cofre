@@ -112,6 +112,10 @@ public class DadosDeDemonstracao implements SmartInitializingSingleton {
         LocalDate aberturaPoupanca = hoje.minusMonths(6).withDayOfMonth(3);
         Conta poupancaAna = poupanca(ana, "2000.00", aberturaPoupanca);
         Conta poupancaHelena = poupanca(helena, "15000.00", aberturaPoupanca);
+        Conta poupancaMario = poupanca(mario, "1500.00", aberturaPoupanca);
+        // Mario liga o Escudo de juros junto com a poupança: quando a conta fica negativa, a poupança cobre.
+        transacao.executeWithoutResult(status -> ((ContaCorrente) contaRepository.findByNumero(mario.getNumero()).orElseThrow())
+                .ativarEscudo(aberturaPoupanca.atTime(11, 5).atZone(ContaService.FUSO).toInstant()));
 
         Caixinha viagem = caixinhas.criarEm(ana, "Viagem para o Chile", new BigDecimal("12000.00"), em(190, "20:00"));
         Caixinha reserva = caixinhas.criarEm(ana, "Reserva de emergência", null, em(190, "20:01"));
@@ -125,6 +129,7 @@ public class DadosDeDemonstracao implements SmartInitializingSingleton {
             evento(mes, 6, "09:05", () -> contas.transferirEm(helena.getNumero(), poupancaHelena.getNumero(), new BigDecimal("1000.00"), "Reserva mensal", quando));
             evento(mes, 2, "10:15", () -> contas.depositarEm(helena.getNumero(), valor(9000, 12500), "Depósito de vendas", quando));
             evento(mes, 5, "08:00", () -> pix.enviarEm(helena.getNumero(), "mario@cofre.dev", new BigDecimal("5200.00"), "Salário", quando));
+            evento(mes, 5, "08:30", () -> contas.transferirEm(mario.getNumero(), poupancaMario.getNumero(), new BigDecimal("400.00"), "Reserva", quando));
             evento(mes, 5, "08:01", () -> pix.enviarEm(helena.getNumero(), "joao@cofre.dev", new BigDecimal("3200.00"), "Salário", quando));
             evento(mes, 5, "08:02", () -> pix.enviarEm(helena.getNumero(), "ana@cofre.dev", valor(2400, 3600), "Projeto de design", quando));
             evento(mes, 6, "19:40", () -> pix.enviarEm(mario.getNumero(), "helena@cofre.dev", new BigDecimal("1850.00"), "Aluguel", quando));
@@ -149,6 +154,11 @@ public class DadosDeDemonstracao implements SmartInitializingSingleton {
             evento(mes, 26, "08:30", () -> pix.enviarEm(mario.getNumero(), "beatriz@cofre.dev", valor(90, 160), "Aula de violão", quando));
             evento(mes, 27, "17:30", () -> contas.sacarEm(joao.getNumero(), valor(250, 500), "Saque no caixa", quando));
         }
+
+        // Hoje cedo, o seguro do carro passa do saldo do Mario: o Escudo cobre a diferença com a poupança, sem juros.
+        BigDecimal saldoMario = contaRepository.findByNumero(mario.getNumero()).orElseThrow().getSaldo();
+        pix.enviarEm(mario.getNumero(), "helena@cofre.dev", saldoMario.max(BigDecimal.ZERO).add(new BigDecimal("380.00")),
+                "Seguro do carro", em(0, "07:30"));
 
         // João termina usando o cheque especial, com juros cobrados nos últimos dias.
         BigDecimal saldoJoao = contaRepository.findByNumero(joao.getNumero()).orElseThrow().getSaldo();

@@ -33,6 +33,15 @@ public interface ContaRepository extends JpaRepository<Conta, Long> {
     @Query("select p from ContaPoupanca p where p.saldo > 0 and p.situacao <> dev.barboza.cofre.dominio.SituacaoConta.ENCERRADA")
     List<ContaPoupanca> poupancasComSaldo();
 
+    @Query("select c from ContaCorrente c where c.escudoAtivo = true and c.saldo < 0 and c.situacao = dev.barboza.cofre.dominio.SituacaoConta.ATIVA")
+    List<ContaCorrente> comEscudoNoNegativo();
+
+    @Query("select p from ContaPoupanca p where p.cliente.id = :clienteId and p.situacao = dev.barboza.cofre.dominio.SituacaoConta.ATIVA order by p.numeroBase")
+    List<ContaPoupanca> poupancasAtivasDoCliente(@Param("clienteId") Long clienteId);
+
+    @Query("select count(c) from ContaCorrente c where c.escudoAtivo = true")
+    long contasComEscudo();
+
     @Query("select count(p) from ContaPoupanca p where p.cliente.id = :clienteId and p.situacao <> dev.barboza.cofre.dominio.SituacaoConta.ENCERRADA")
     long poupancasAbertas(@Param("clienteId") Long clienteId);
 

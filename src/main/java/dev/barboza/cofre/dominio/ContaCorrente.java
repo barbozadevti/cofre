@@ -17,6 +17,13 @@ public class ContaCorrente extends Conta {
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal limite;
 
+    /** Escudo de juros: cobrir o saldo negativo com a poupança do cliente antes de cobrar juros. */
+    @Column(name = "escudo_ativo", nullable = false)
+    private boolean escudoAtivo;
+
+    @Column(name = "escudo_desde")
+    private Instant escudoDesde;
+
     protected ContaCorrente() {
     }
 
@@ -55,8 +62,40 @@ public class ContaCorrente extends Conta {
         limite = valor;
     }
 
+    public void ativarEscudo(Instant quando) {
+        exigirAtiva();
+        if (escudoAtivo) {
+            throw new OperacaoInvalidaException("O Escudo de juros já está ativo.");
+        }
+        escudoAtivo = true;
+        escudoDesde = quando;
+    }
+
+    public void desativarEscudo() {
+        if (!escudoAtivo) {
+            throw new OperacaoInvalidaException("O Escudo de juros já está desligado.");
+        }
+        escudoAtivo = false;
+        escudoDesde = null;
+    }
+
+    /** Quanto o Escudo precisa trazer para a conta voltar a zero (zero se não estiver negativa). */
+    public BigDecimal faltaParaZerar() {
+        return usoDoLimite();
+    }
+
+    public boolean isEscudoAtivo() {
+        return escudoAtivo;
+    }
+
+    public Instant getEscudoDesde() {
+        return escudoDesde;
+    }
+
     @Override
     protected void aoEncerrar() {
         limite = zero();
+        escudoAtivo = false;
+        escudoDesde = null;
     }
 }

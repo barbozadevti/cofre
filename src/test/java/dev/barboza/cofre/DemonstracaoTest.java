@@ -33,6 +33,9 @@ class DemonstracaoTest {
     @Autowired
     PainelService painel;
 
+    @Autowired
+    dev.barboza.cofre.copiloto.CopilotoService copiloto;
+
     @Test
     void todosOsPerfisDeDemonstracaoEntram() {
         assertThat(autenticacao.autenticar("gerente@cofre.dev", DadosDeDemonstracao.SENHA).usuario().perfil()).isEqualTo(Perfil.GERENTE);
@@ -43,7 +46,7 @@ class DemonstracaoTest {
     @Test
     void criaSeisMesesDeHistoricoEUmClienteNoChequeEspecial() {
         UsuarioLogado gerente = autenticacao.autenticar("gerente@cofre.dev", DadosDeDemonstracao.SENHA).usuario();
-        assertThat(contas.contasVisiveis(gerente)).hasSize(8);   // 6 correntes + 2 poupanças
+        assertThat(contas.contasVisiveis(gerente)).hasSize(9);   // 6 correntes + 3 poupanças
 
         Conta joao = contas.pesquisar(gerente, "João").getFirst();
         assertThat(joao.getSaldo().signum()).isNegative();
@@ -65,5 +68,16 @@ class DemonstracaoTest {
         assertThat(lancamentos).filteredOn(l -> l.getTipo() == TipoLancamento.RENDIMENTO_POUPANCA).hasSizeGreaterThanOrEqualTo(5);
         assertThat(lancamentos).filteredOn(l -> l.getTipo() == TipoLancamento.TRANSFERENCIA_RECEBIDA).hasSizeGreaterThanOrEqualTo(5);
         assertThat(poupanca.getSaldo()).isGreaterThan(new java.math.BigDecimal("3000"));
+    }
+
+    @Test
+    void marioTemOEscudoLigadoComCoberturasNoHistorico() {
+        UsuarioLogado mario = autenticacao.autenticar("mario@cofre.dev", DadosDeDemonstracao.SENHA).usuario();
+        Conta corrente = contas.contasVisiveis(mario).getFirst();
+        var c = copiloto.copiloto(mario, corrente.getNumero());
+        assertThat(c.escudo().ativo()).isTrue();
+        assertThat(c.escudo().coberturas()).isPositive();
+        assertThat(c.escudo().economiaEstimada().signum()).isPositive();
+        assertThat(c.previsao().recorrencias()).extracting(r -> r.descricao()).anyMatch(d -> d.startsWith("Salário"));
     }
 }

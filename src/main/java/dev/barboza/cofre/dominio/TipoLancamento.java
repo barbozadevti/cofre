@@ -12,7 +12,9 @@ public enum TipoLancamento {
     CAIXINHA_GUARDADO("Guardado na caixinha", false),
     CAIXINHA_RESGATADO("Resgate da caixinha", true),
     JUROS_CHEQUE_ESPECIAL("Juros do cheque especial", false),
-    RENDIMENTO_POUPANCA("Rendimento da poupança", true);
+    RENDIMENTO_POUPANCA("Rendimento da poupança", true),
+    ESCUDO_RESGATE("Escudo de juros: resgate automático", false),
+    ESCUDO_COBERTURA("Escudo de juros: saldo negativo coberto", true);
 
     private final String descricao;
     private final boolean credito;

@@ -10,12 +10,13 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import dev.barboza.cofre.copiloto.CopilotoService;
 import dev.barboza.cofre.servico.ContaService;
 import dev.barboza.cofre.servico.JurosChequeEspecial;
 import dev.barboza.cofre.servico.RendimentoPoupanca;
 
 /**
- * Todo dia às 00:05 (Brasília): cobra os juros do cheque especial do dia anterior e credita o rendimento das
+ * Todo dia às 00:05 (Brasília): aciona o Escudo de juros, cobra os juros do cheque especial do dia anterior e credita o rendimento das
  * poupanças que fazem aniversário hoje. Desligado nos testes e no terminal.
  */
 @Component
@@ -27,17 +28,21 @@ public class AgendadorDeJuros {
 
     private final JurosChequeEspecial juros;
     private final RendimentoPoupanca rendimento;
+    private final CopilotoService copiloto;
     private final Clock relogio;
 
-    public AgendadorDeJuros(JurosChequeEspecial juros, RendimentoPoupanca rendimento, Clock relogio) {
+    public AgendadorDeJuros(JurosChequeEspecial juros, RendimentoPoupanca rendimento, CopilotoService copiloto, Clock relogio) {
         this.juros = juros;
         this.rendimento = rendimento;
+        this.copiloto = copiloto;
         this.relogio = relogio;
     }
 
     @Scheduled(cron = "0 5 0 * * *", zone = "America/Sao_Paulo")
     public void cobrarOntem() {
         LocalDate ontem = LocalDate.now(relogio.withZone(ContaService.FUSO)).minusDays(1);
+        // Primeiro o Escudo: quem tem poupança e ligou a proteção não paga juros.
+        log.info("Escudo de juros: {} conta(s) cobertas", copiloto.proteger(relogio.instant()));
         log.info("Juros do cheque especial de {}: {} conta(s) cobrada(s)", ontem, juros.cobrar(ontem));
         LocalDate hoje = ontem.plusDays(1);
         log.info("Rendimento da poupança de {}: {} conta(s) creditada(s)", hoje, rendimento.creditar(hoje));

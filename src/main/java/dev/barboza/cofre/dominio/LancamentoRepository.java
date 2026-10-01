@@ -26,6 +26,8 @@ public interface LancamentoRepository extends JpaRepository<Lancamento, Long> {
 
     boolean existsByIdTransacao(String idTransacao);
 
+    long countByContaIdAndTipo(Long contaId, TipoLancamento tipo);
+
     /** Soma das saídas de certos tipos num intervalo (limites do Pix). */
     @Query("""
             select coalesce(sum(l.valor), 0) from Lancamento l
