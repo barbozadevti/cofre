@@ -5,6 +5,8 @@ import {
   lerValor, listaDeLancamentos, moeda, mostrarComprovante,
 } from "./ui.js";
 import { botaoPrivacidade } from "./app.js";
+import { montarCopiloto } from "./copiloto.js";
+import { comProtecaoContraGolpes } from "./risco.js";
 
 let contaAtual = null;
 
@@ -61,6 +63,7 @@ export async function inicio(principal, ctx) {
   principal.innerHTML = `
     <div class="topo"><div><h1>${saudacao}, ${escapar(primeiroNome)}</h1><p>${conta.tipoNome} · Ag. ${conta.agencia} · Conta ${conta.numero}</p></div>
       <div class="topo-acoes">${seletorDeConta(contas)}${botaoPrivacidade()}</div></div>
+    ${ehPoupanca ? "" : `<div data-copiloto class="espaco-copiloto"></div>`}
     <div class="grade-2">
       <div class="grade">
         <section class="saldo-principal">
@@ -106,6 +109,7 @@ export async function inicio(principal, ctx) {
   $$("[data-medidor]", principal).forEach((m) => { $("span", m).style.width = m.dataset.medidor + "%"; });
   ligarComprovantes(principal);
   ligarSeletorDeConta(principal, ctx.recarregar);
+  if (!ehPoupanca) montarCopiloto($("[data-copiloto]", principal), conta.numero, ctx.recarregar);
   $("[data-transferir]", principal).addEventListener("click", () => transferir(ctx));
   $("[data-abrir-poupanca]", principal)?.addEventListener("click", async (e) => {
     e.currentTarget.disabled = true;
@@ -305,10 +309,15 @@ async function pixEnviar(raiz, ctx) {
       const botao = form.querySelector("button[type=submit]");
       botao.disabled = true;
       try {
-        const comprovante = await api("/api/pix/envios", {
-          metodo: "POST", cabecalhos: { "Idempotency-Key": chave },
+        const comprovante = await comProtecaoContraGolpes((extras) => api("/api/pix/envios", {
+          metodo: "POST", cabecalhos: { "Idempotency-Key": chave, ...extras },
           corpo: { conta: contaAtual, chave: destinatario.chave, valor, mensagem: form.mensagem.value },
-        });
+        }));
+        if (!comprovante) {
+          botao.disabled = false;
+          avisar("Pix cancelado. Nenhum valor saiu da sua conta.");
+          return;
+        }
         mostrarComprovante(comprovante);
         await pixEnviar(raiz, ctx);
       } catch (falha) {
@@ -410,9 +419,13 @@ async function pixColar(raiz, ctx) {
           return;
         }
         try {
-          const comprovante = await api("/api/pix/copia-e-cola/pagamento", {
-            metodo: "POST", cabecalhos: { "Idempotency-Key": chave }, corpo: { conta: contaAtual, codigo: form.codigo.value, valor },
-          });
+          const comprovante = await comProtecaoContraGolpes((extras) => api("/api/pix/copia-e-cola/pagamento", {
+            metodo: "POST", cabecalhos: { "Idempotency-Key": chave, ...extras }, corpo: { conta: contaAtual, codigo: form.codigo.value, valor },
+          }));
+          if (!comprovante) {
+            avisar("Pagamento cancelado. Nenhum valor saiu da sua conta.");
+            return;
+          }
           mostrarComprovante(comprovante);
           await pixColar(raiz, ctx);
         } catch (falha) {

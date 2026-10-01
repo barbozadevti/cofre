@@ -179,11 +179,11 @@ public class DadosDeDemonstracao implements SmartInitializingSingleton {
         pix.enviarEm(mario.getNumero(), "helena@cofre.dev", saldoMario.max(BigDecimal.ZERO).add(new BigDecimal("380.00")),
                 "Seguro do carro", em(0, "07:30"));
 
-        // Antifraude em ação: Ana tenta mandar um valor muito acima do costume para quem nunca pagou (retido e não
-        // confirmado); Helena manda um valor alto para um destinatário novo e confirma.
-        tentarPix(ana, "joao@cofre.dev", "2500.00", false);
-        tentarPix(helena, "beatriz@cofre.dev", "12000.00", false);
-        tentarPix(helena, "beatriz@cofre.dev", "12000.00", true);
+        // Antifraude em ação (valores abaixo do limite noturno, para valer a qualquer hora): Ana tenta mandar um valor
+        // muito acima do costume para quem nunca pagou (retido e não confirmado); Beatriz faz o mesmo e confirma.
+        tentarPix(ana, "joao@cofre.dev", "900.00", false);
+        tentarPix(bia, "mario@cofre.dev", "950.00", false);
+        tentarPix(bia, "mario@cofre.dev", "950.00", true);
 
         // João termina usando o cheque especial, com juros cobrados nos últimos dias.
         BigDecimal saldoJoao = contaRepository.findByNumero(joao.getNumero()).orElseThrow().getSaldo();

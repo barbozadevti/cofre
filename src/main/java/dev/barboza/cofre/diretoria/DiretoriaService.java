@@ -176,6 +176,10 @@ public class DiretoriaService {
                 + "% em poupança."));
         l.add(new Leitura(r.margem().signum() >= 0 ? "bom" : "atencao", "Nos últimos 30 dias, os juros do cheque especial renderam "
                 + Dinheiro.formatar(r.receitaDeJuros()) + " e a poupança custou " + Dinheiro.formatar(r.custoDoRendimento()) + "."));
+        if (r.margem().signum() < 0) {
+            l.add(new Leitura("atencao", "A carteira de crédito ainda é pequena: o custo da poupança supera os juros do cheque especial. "
+                    + "Empréstimo pessoal com CET claro é a próxima alavanca de receita (próxima onda da Lean Inception)."));
+        }
         if (cr.utilizacao().compareTo(new BigDecimal("40")) > 0) {
             l.add(new Leitura("atencao", "Utilização do cheque especial em " + cr.utilizacao() + "% do limite concedido."));
         }

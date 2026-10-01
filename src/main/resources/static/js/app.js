@@ -5,18 +5,25 @@ import { telaDeLogin, telaDeTrocaDeSenha, telaDePerfil } from "./login.js";
 import * as cliente from "./cliente.js";
 import * as agencia from "./agencia.js";
 import * as gerencia from "./gerencia.js";
+import * as diretoria from "./diretoria.js";
+import { salario } from "./salario.js";
 
 const ROTAS = {
   CLIENTE: [
     { id: "inicio", nome: "Início", icone: "inicio", tela: cliente.inicio },
     { id: "pix", nome: "Pix", icone: "pix", tela: cliente.pix },
     { id: "extrato", nome: "Extrato", icone: "extrato", tela: cliente.extrato },
+    { id: "salario", nome: "Salário", icone: "salario", tela: salario },
     { id: "caixinhas", nome: "Caixinhas", icone: "caixinha", tela: cliente.caixinhas },
     { id: "cartao", nome: "Cartão", icone: "cartao", tela: cliente.cartao },
     { id: "perfil", nome: "Perfil", icone: "perfil", tela: telaDePerfil },
   ],
   CAIXA: [
     { id: "balcao", nome: "Balcão", icone: "balcao", tela: agencia.balcao },
+    { id: "perfil", nome: "Perfil", icone: "perfil", tela: telaDePerfil },
+  ],
+  DIRETORIA: [
+    { id: "executivo", nome: "Visão executiva", icone: "diretoria", tela: diretoria.painel },
     { id: "perfil", nome: "Perfil", icone: "perfil", tela: telaDePerfil },
   ],
   GERENTE: [
@@ -94,7 +101,7 @@ function desenharCasca() {
 }
 
 function nomeDoPerfil(perfil) {
-  return { CLIENTE: "Cliente", CAIXA: "Caixa", GERENTE: "Gerente" }[perfil] || perfil;
+  return { CLIENTE: "Cliente", CAIXA: "Caixa", GERENTE: "Gerente", DIRETORIA: "Diretoria" }[perfil] || perfil;
 }
 
 async function navegar() {

@@ -90,6 +90,12 @@ const caminhos = {
   lixo: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
   imprimir: '<path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/>',
   baixar: '<path d="M12 4v12M7 11l5 5 5-5M4 20h16"/>',
+  salario: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/>',
+  copiloto: '<path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5"/><path d="m12 9 1.5 3L12 15l-1.5-3z"/>',
+  tendencia: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  alerta: '<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>',
+  diretoria: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  rendimento: '<path d="M4 18l5-5 4 3 7-8"/><path d="M14 8h6v6"/>',
 };
 
 export function icone(nome) {
@@ -101,7 +107,8 @@ export function aparenciaDoLancamento(tipo) {
   const mapa = {
     PIX_ENVIADO: "pix", PIX_RECEBIDO: "pix", TRANSFERENCIA_ENVIADA: "transferir", TRANSFERENCIA_RECEBIDA: "transferir",
     DEPOSITO: "deposito", SAQUE: "saque", CAIXINHA_GUARDADO: "caixinha", CAIXINHA_RESGATADO: "caixinha",
-    JUROS_CHEQUE_ESPECIAL: "juros", ABERTURA: "abertura",
+    JUROS_CHEQUE_ESPECIAL: "juros", ABERTURA: "abertura", RENDIMENTO_POUPANCA: "rendimento",
+    ESCUDO_RESGATE: "escudo", ESCUDO_COBERTURA: "escudo", SALARIO_PORTADO: "salario",
   };
   return mapa[tipo] || "extrato";
 }

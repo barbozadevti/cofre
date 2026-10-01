@@ -7,6 +7,8 @@ const DEMO = [
   { login: "joao@cofre.dev", titulo: "Cliente no limite", detalhe: "João · cheque especial e juros" },
   { login: "caixa@cofre.dev", titulo: "Caixa", detalhe: "Antônio · depósito e saque" },
   { login: "gerente@cofre.dev", titulo: "Gerente", detalhe: "Carla · contas, limites, auditoria" },
+  { login: "beatriz@cofre.dev", titulo: "Salário portado", detalhe: "Beatriz · Pague-se primeiro" },
+  { login: "diretoria@cofre.dev", titulo: "Diretoria (CEO)", detalhe: "Ricardo · visão executiva" },
 ];
 const SENHA_DEMO = "Cofre@2026";
 
@@ -16,9 +18,10 @@ export function telaDeLogin(aoEntrar) {
         <div class="marca"><img src="favicon.svg" alt=""><div><strong>Cofre</strong><small>banco digital</small></div></div>
         <div>
           <h1>Seu dinheiro <em>guardado</em> com a seriedade de um cofre.</h1>
-          <p>Pix com QR Code, cheque especial, caixinhas e cartão virtual com CVV dinâmico. E, do outro lado do balcão, o backoffice da agência.</p>
+          <p>O banco que avisa antes do aperto e cobre o saldo negativo com a sua poupança, sem juros. Pix com antifraude explicável, portabilidade de salário e uma visão executiva para a diretoria.</p>
           <ul>
-            <li>${icone("pix")} Pix por chave, QR Code e copia e cola (padrão BR Code do Banco Central)</li>
+            <li>${icone("copiloto")} Copiloto: previsão do saldo para 30 dias e Escudo de juros</li>
+            <li>${icone("pix")} Pix por chave, QR Code e copia e cola, com nota de risco antifraude</li>
             <li>${icone("escudo")} Perfis de cliente, caixa e gerente, com auditoria de cada ação</li>
             <li>${icone("cadeado")} Sessão protegida, CSRF e bloqueio após 5 senhas erradas</li>
           </ul>
@@ -122,7 +125,7 @@ export function telaDeTrocaDeSenha(sessao, aoConcluir, sair) {
 }
 
 export async function telaDePerfil(principal, { sessao, sair }) {
-  const perfis = { CLIENTE: "Cliente", CAIXA: "Caixa", GERENTE: "Gerente" };
+  const perfis = { CLIENTE: "Cliente", CAIXA: "Caixa", GERENTE: "Gerente", DIRETORIA: "Diretoria" };
   principal.innerHTML = `<div class="topo"><div><h1>Perfil</h1><p>Seus dados de acesso e segurança.</p></div></div>
     <div class="grade-2">
       <section class="bloco"><div class="bloco-topo"><h2>Trocar senha</h2></div>${formularioDeSenha(true)}</section>

@@ -13,10 +13,11 @@ export function quandoPerderSessao(funcao) {
 }
 
 export class ErroDaApi extends Error {
-  constructor(status, titulo, detalhe) {
+  constructor(status, titulo, detalhe, dados) {
     super(detalhe || "Não foi possível concluir a operação.");
     this.status = status;
     this.titulo = titulo || "Erro";
+    this.dados = dados;
   }
 }
 
@@ -40,7 +41,7 @@ export async function api(caminho, { metodo = "GET", corpo, cabecalhos = {} } = 
   const tipo = resposta.headers.get("content-type") || "";
   const dados = tipo.includes("json") ? await resposta.json().catch(() => null) : await resposta.text();
   if (!resposta.ok) {
-    const erro = new ErroDaApi(resposta.status, dados?.title, dados?.detail);
+    const erro = new ErroDaApi(resposta.status, dados?.title, dados?.detail, typeof dados === "object" ? dados : null);
     if (resposta.status === 401 && !caminho.startsWith("/api/auth/")) aoPerderSessao(erro);
     throw erro;
   }
