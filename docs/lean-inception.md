@@ -104,7 +104,8 @@
 | 5 | Login com perfis, cheque especial com juros, backoffice e auditoria | Entregue |
 | 6 | Pix completo (chaves, BR Code, limites, comprovantes), caixinhas, cartão virtual | Entregue |
 | 7 | PostgreSQL com Flyway, Docker Compose, OpenAPI, novo visual | Entregue |
-| 8 | Notificações por e-mail, autenticação em dois fatores, limites de Pix ajustáveis pelo cliente | Próxima |
+| 8 | Conta poupança (herança de contas, rendimento no aniversário, abertura pelo app) | Entregue |
+| 9 | Notificações por e-mail, autenticação em dois fatores, limites de Pix ajustáveis pelo cliente | Próxima |
 
 ## 8. MVP
 
