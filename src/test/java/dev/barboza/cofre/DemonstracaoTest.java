@@ -46,7 +46,7 @@ class DemonstracaoTest {
     @Test
     void criaSeisMesesDeHistoricoEUmClienteNoChequeEspecial() {
         UsuarioLogado gerente = autenticacao.autenticar("gerente@cofre.dev", DadosDeDemonstracao.SENHA).usuario();
-        assertThat(contas.contasVisiveis(gerente)).hasSize(9);   // 6 correntes + 3 poupanças
+        assertThat(contas.contasVisiveis(gerente)).hasSize(10);   // 6 correntes + 4 poupanças
 
         Conta joao = contas.pesquisar(gerente, "João").getFirst();
         assertThat(joao.getSaldo().signum()).isNegative();
@@ -68,6 +68,18 @@ class DemonstracaoTest {
         assertThat(lancamentos).filteredOn(l -> l.getTipo() == TipoLancamento.RENDIMENTO_POUPANCA).hasSizeGreaterThanOrEqualTo(5);
         assertThat(lancamentos).filteredOn(l -> l.getTipo() == TipoLancamento.TRANSFERENCIA_RECEBIDA).hasSizeGreaterThanOrEqualTo(5);
         assertThat(poupanca.getSaldo()).isGreaterThan(new java.math.BigDecimal("3000"));
+    }
+
+    @Test
+    void beatrizRecebeOSalarioPortadoEGuardaDezPorCento(@Autowired dev.barboza.cofre.salario.SalarioService salario) {
+        UsuarioLogado bia = autenticacao.autenticar("beatriz@cofre.dev", DadosDeDemonstracao.SENHA).usuario();
+        var resumo = salario.resumo(bia);
+        assertThat(resumo.corrente().getReservaPercentual()).isEqualTo(10);
+        assertThat(resumo.mesesRecebidos()).isGreaterThanOrEqualTo(3);
+        Conta poupanca = contas.contasVisiveis(bia).stream().filter(c -> c.getTipo() == TipoConta.POUPANCA).findFirst().orElseThrow();
+        assertThat(poupanca.getSaldo()).isGreaterThanOrEqualTo(new java.math.BigDecimal("1260"));   // 3 x 420
+        UsuarioLogado joao = autenticacao.autenticar("joao@cofre.dev", DadosDeDemonstracao.SENHA).usuario();
+        assertThat(salario.resumo(joao).portabilidades().getFirst().situacao(RelogioFixo.AGORA).name()).isEqualTo("EM_ANALISE");
     }
 
     @Test

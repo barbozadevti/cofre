@@ -11,6 +11,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import dev.barboza.cofre.copiloto.CopilotoService;
+import dev.barboza.cofre.salario.SalarioService;
 import dev.barboza.cofre.servico.ContaService;
 import dev.barboza.cofre.servico.JurosChequeEspecial;
 import dev.barboza.cofre.servico.RendimentoPoupanca;
@@ -29,9 +30,12 @@ public class AgendadorDeJuros {
     private final JurosChequeEspecial juros;
     private final RendimentoPoupanca rendimento;
     private final CopilotoService copiloto;
+    private final SalarioService salario;
     private final Clock relogio;
 
-    public AgendadorDeJuros(JurosChequeEspecial juros, RendimentoPoupanca rendimento, CopilotoService copiloto, Clock relogio) {
+    public AgendadorDeJuros(JurosChequeEspecial juros, RendimentoPoupanca rendimento, CopilotoService copiloto,
+            SalarioService salario, Clock relogio) {
+        this.salario = salario;
         this.juros = juros;
         this.rendimento = rendimento;
         this.copiloto = copiloto;
@@ -46,5 +50,6 @@ public class AgendadorDeJuros {
         log.info("Juros do cheque especial de {}: {} conta(s) cobrada(s)", ontem, juros.cobrar(ontem));
         LocalDate hoje = ontem.plusDays(1);
         log.info("Rendimento da poupança de {}: {} conta(s) creditada(s)", hoje, rendimento.creditar(hoje));
+        log.info("Salários portados de {}: {} crédito(s)", hoje, salario.creditarSalarios(hoje));
     }
 }

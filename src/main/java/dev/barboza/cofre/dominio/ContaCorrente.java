@@ -24,6 +24,12 @@ public class ContaCorrente extends Conta {
     @Column(name = "escudo_desde")
     private Instant escudoDesde;
 
+    /** "Pague-se primeiro": porcentagem de cada salário guardada na poupança assim que cai (0 = desligado). */
+    @Column(name = "reserva_percentual", nullable = false)
+    private int reservaPercentual;
+
+    public static final int RESERVA_MAXIMA = 50;
+
     protected ContaCorrente() {
     }
 
@@ -82,6 +88,18 @@ public class ContaCorrente extends Conta {
     /** Quanto o Escudo precisa trazer para a conta voltar a zero (zero se não estiver negativa). */
     public BigDecimal faltaParaZerar() {
         return usoDoLimite();
+    }
+
+    public void definirReserva(int percentual) {
+        exigirAtiva();
+        if (percentual < 0 || percentual > RESERVA_MAXIMA) {
+            throw new OperacaoInvalidaException("Escolha de 0% a " + RESERVA_MAXIMA + "% do salário.");
+        }
+        reservaPercentual = percentual;
+    }
+
+    public int getReservaPercentual() {
+        return reservaPercentual;
     }
 
     public boolean isEscudoAtivo() {

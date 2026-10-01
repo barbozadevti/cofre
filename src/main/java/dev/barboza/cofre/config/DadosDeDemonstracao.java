@@ -31,6 +31,7 @@ import dev.barboza.cofre.seguranca.UsuarioRepository;
 import dev.barboza.cofre.servico.ContaService;
 import dev.barboza.cofre.servico.JurosChequeEspecial;
 import dev.barboza.cofre.servico.RendimentoPoupanca;
+import dev.barboza.cofre.salario.SalarioService;
 
 /**
  * Na primeira execução (banco vazio), cria gerente, caixa e 6 clientes (um deles, um mercado) com 6 meses de movimentação:
@@ -48,6 +49,7 @@ public class DadosDeDemonstracao implements SmartInitializingSingleton {
     private final CaixinhaService caixinhas;
     private final JurosChequeEspecial juros;
     private final RendimentoPoupanca rendimento;
+    private final SalarioService salario;
     private final ClienteRepository clientes;
     private final ContaRepository contaRepository;
     private final UsuarioRepository usuarios;
@@ -60,13 +62,14 @@ public class DadosDeDemonstracao implements SmartInitializingSingleton {
     private LocalDate hoje;
 
     public DadosDeDemonstracao(ContaService contas, PixService pix, CaixinhaService caixinhas, JurosChequeEspecial juros,
-            RendimentoPoupanca rendimento, ClienteRepository clientes, ContaRepository contaRepository, UsuarioRepository usuarios, PasswordEncoder senhas,
+            RendimentoPoupanca rendimento, SalarioService salario, ClienteRepository clientes, ContaRepository contaRepository, UsuarioRepository usuarios, PasswordEncoder senhas,
             TransactionTemplate transacao, Clock relogio) {
         this.contas = contas;
         this.pix = pix;
         this.caixinhas = caixinhas;
         this.juros = juros;
         this.rendimento = rendimento;
+        this.salario = salario;
         this.clientes = clientes;
         this.contaRepository = contaRepository;
         this.usuarios = usuarios;
@@ -117,6 +120,20 @@ public class DadosDeDemonstracao implements SmartInitializingSingleton {
         transacao.executeWithoutResult(status -> ((ContaCorrente) contaRepository.findByNumero(mario.getNumero()).orElseThrow())
                 .ativarEscudo(aberturaPoupanca.atTime(11, 5).atZone(ContaService.FUSO).toInstant()));
 
+        // Beatriz trouxe o salário do Itaú há quatro meses e guarda 10% de cada salário na poupança (Pague-se primeiro).
+        poupanca(bia, "0.00", hoje.minusMonths(4).withDayOfMonth(1));
+        transacao.executeWithoutResult(status -> {
+            ContaCorrente corrente = (ContaCorrente) contaRepository.findByNumero(bia.getNumero()).orElseThrow();
+            corrente.definirReserva(10);
+            salario.registrar(corrente, new SalarioService.Pedido("341", "Clínica Sorriso Ltda", "48291573000148",
+                    new BigDecimal("4200.00"), 5), hoje.minusMonths(4).withDayOfMonth(1).atTime(14, 0).atZone(ContaService.FUSO).toInstant());
+        });
+        // João pediu ontem a portabilidade do Bradesco: o pedido está em análise.
+        transacao.executeWithoutResult(status -> salario.registrar(
+                (ContaCorrente) contaRepository.findByNumero(joao.getNumero()).orElseThrow(),
+                new SalarioService.Pedido("237", "Oficina Rocha Ltda", "37510486000118", new BigDecimal("3600.00"), 10),
+                em(1, "09:30")));
+
         Caixinha viagem = caixinhas.criarEm(ana, "Viagem para o Chile", new BigDecimal("12000.00"), em(190, "20:00"));
         Caixinha reserva = caixinhas.criarEm(ana, "Reserva de emergência", null, em(190, "20:01"));
         Caixinha carro = caixinhas.criarEm(mario, "Carro novo", new BigDecimal("40000.00"), em(185, "21:30"));
@@ -125,6 +142,7 @@ public class DadosDeDemonstracao implements SmartInitializingSingleton {
         for (int mesesAtras = 5; mesesAtras >= 0; mesesAtras--) {
             LocalDate mes = hoje.minusMonths(mesesAtras).withDayOfMonth(1);
             evento(mes, 3, "00:10", () -> rendimento.creditar(mes.withDayOfMonth(3), quando));
+            evento(mes, 5, "07:00", () -> salario.creditarSalarios(mes.withDayOfMonth(5), quando));
             evento(mes, 6, "09:00", () -> contas.transferirEm(ana.getNumero(), poupancaAna.getNumero(), valor(300, 500), "Guardar na poupança", quando));
             evento(mes, 6, "09:05", () -> contas.transferirEm(helena.getNumero(), poupancaHelena.getNumero(), new BigDecimal("1000.00"), "Reserva mensal", quando));
             evento(mes, 2, "10:15", () -> contas.depositarEm(helena.getNumero(), valor(9000, 12500), "Depósito de vendas", quando));

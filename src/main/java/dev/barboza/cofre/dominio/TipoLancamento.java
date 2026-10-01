@@ -14,7 +14,8 @@ public enum TipoLancamento {
     JUROS_CHEQUE_ESPECIAL("Juros do cheque especial", false),
     RENDIMENTO_POUPANCA("Rendimento da poupança", true),
     ESCUDO_RESGATE("Escudo de juros: resgate automático", false),
-    ESCUDO_COBERTURA("Escudo de juros: saldo negativo coberto", true);
+    ESCUDO_COBERTURA("Escudo de juros: saldo negativo coberto", true),
+    SALARIO_PORTADO("Salário (portabilidade)", true);
 
     private final String descricao;
     private final boolean credito;

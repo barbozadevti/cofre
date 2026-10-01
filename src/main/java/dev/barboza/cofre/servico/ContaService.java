@@ -202,7 +202,43 @@ public class ContaService {
         Lancamento recebido = destino.creditar(entrada, valor, Conta.Contraparte.de(origem), mensagem, id, quando);
         lancamentos.saveAll(List.of(enviado, recebido));
         cobrirComEscudo(origem, quando, destino);
+        if (ehSalario(entrada, mensagem)) {
+            pagueSePrimeiro(destino, valor, quando);
+        }
         return id;
+    }
+
+    private static boolean ehSalario(TipoLancamento entrada, String mensagem) {
+        if (mensagem == null || (entrada != TipoLancamento.PIX_RECEBIDO && entrada != TipoLancamento.TRANSFERENCIA_RECEBIDA)) {
+            return false;
+        }
+        String texto = java.text.Normalizer.normalize(mensagem, java.text.Normalizer.Form.NFD).replaceAll("\\p{M}", "").toLowerCase();
+        return texto.contains("salario") && !texto.contains("pague-se");
+    }
+
+    /**
+     * "Pague-se primeiro": assim que o salário cai, guarda na poupança a porcentagem escolhida pelo cliente,
+     * antes de qualquer gasto. Só guarda dinheiro próprio (nunca usa o limite).
+     */
+    @Transactional
+    public BigDecimal pagueSePrimeiro(Conta conta, BigDecimal salario, Instant quando) {
+        BigDecimal zero = BigDecimal.ZERO.setScale(2);
+        if (!(conta instanceof ContaCorrente corrente) || corrente.getReservaPercentual() == 0) {
+            return zero;
+        }
+        List<ContaPoupanca> poupancas = contas.poupancasAtivasDoCliente(corrente.getCliente().getId());
+        if (poupancas.isEmpty()) {
+            return zero;
+        }
+        BigDecimal valor = salario.multiply(BigDecimal.valueOf(corrente.getReservaPercentual()))
+                .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_EVEN)
+                .min(corrente.getSaldo().max(zero));
+        if (valor.signum() <= 0) {
+            return zero;
+        }
+        movimentar(corrente, poupancas.getFirst(), valor, "Pague-se primeiro: " + corrente.getReservaPercentual() + "% do salário",
+                TipoLancamento.TRANSFERENCIA_ENVIADA, TipoLancamento.TRANSFERENCIA_RECEBIDA, 'T', quando, null);
+        return valor;
     }
 
     /**
