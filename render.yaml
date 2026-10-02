@@ -1,0 +1,18 @@
+# Demo online no Render (plano gratuito): New > Blueprint > aponte para este repositório.
+# O banco é H2 em memória: a demonstração (clientes e 6 meses de histórico) é recriada a cada início,
+# o que leva cerca de 10 segundos. Sem disco e sem PostgreSQL pago.
+services:
+  - type: web
+    name: cofre
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "5230"
+      - key: SPRING_DATASOURCE_URL
+        value: jdbc:h2:mem:cofre;DB_CLOSE_DELAY=-1
+      - key: SERVER_FORWARD_HEADERS_STRATEGY
+        value: framework
+      - key: JAVA_TOOL_OPTIONS
+        value: -Xmx380m
